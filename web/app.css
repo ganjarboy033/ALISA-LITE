@@ -140,3 +140,20 @@ body.hasmini #toasts{bottom:calc(144px + env(safe-area-inset-bottom,0px))}
 
 /* Batch individual preview */
 .bp-head h3{margin:6px 0}.bp-head p{margin:4px 0 14px}.bp-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}.bp-select{display:flex;gap:7px;align-items:center;margin-right:auto}.bp-tools select{max-width:135px;min-width:0}.bp-list{display:grid;gap:9px;max-height:52vh;overflow:auto;padding:2px}.bp-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line,rgba(255,255,255,.1));border-radius:14px;background:var(--panel,rgba(255,255,255,.035));cursor:pointer}.bp-item input{flex:0 0 auto;width:18px;height:18px;accent-color:var(--accent)}.bp-thumb{width:52px;height:52px;flex:0 0 52px;border-radius:10px;overflow:hidden;background:rgba(155,124,255,.13);display:grid;place-items:center}.bp-thumb img{width:100%;height:100%;object-fit:cover}.bp-meta{min-width:0;flex:1;display:grid;gap:3px}.bp-meta b,.bp-meta small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bp-meta small{color:var(--muted)}.bp-footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0 2px;background:var(--bg,#0c1020)}.bp-footer .primary{white-space:nowrap}
+
+/* ===== Tools (port Mori) ===== */
+#p-tools.tools-open>:not(#tv){display:none}
+.tv-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}.tv-head h3{margin:0}.tv-head small{display:block}
+.fld{width:100%;height:46px;border-radius:13px;border:1px solid var(--line);background:rgba(255,255,255,.045);padding:0 14px;outline:none}
+textarea.fld{height:130px;padding:12px 14px;resize:vertical;line-height:1.5}
+.wide{width:100%;margin-top:10px}.tv-l{margin-top:12px}
+.tv .panel{margin-bottom:10px}.tv .status{margin-top:10px}.tv .kv:first-of-type{margin-top:10px}
+.tv img.pv,.tv video.pv,.tv audio.pv{width:100%;border-radius:12px;margin-top:10px;max-height:260px;object-fit:contain;background:rgba(0,0,0,.35)}
+.tv .av{width:56px;height:56px;border-radius:50%;object-fit:cover}
+.tv .rr{display:flex;align-items:center;gap:12px;padding:6px 0}
+.tprog{height:6px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:10px}.tprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:99px;border:1px solid var(--line)}.pill.free{color:var(--ok)}.pill.taken{color:var(--bad)}.pill.error{color:var(--warn)}
+.tv .ok{color:var(--ok)}.tv .bad{color:var(--bad)}
+body.compact .panel{padding:12px}body.compact .sw{padding:8px 0}body.compact .hrow{padding:8px 10px}
+/* tab bisa disembunyikan dari Setelan: kolom mengikuti jumlah tab yang tampil */
+.nav,.nav{grid-auto-flow:column;grid-template-columns:none!important;grid-auto-columns:minmax(0,1fr)}

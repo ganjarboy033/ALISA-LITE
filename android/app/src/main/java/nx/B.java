@@ -15,7 +15,6 @@ import android.content.SharedPreferences;
 import android.provider.DocumentsContract;
 import android.os.Build;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.net.Uri;
 import android.webkit.JavascriptInterface;
 import java.util.Hashtable;
@@ -141,6 +140,97 @@ public class B {
         try { Intent i=new Intent(a, nx.DownloadKeepAliveService.class); if(android.os.Build.VERSION.SDK_INT>=26)a.startForegroundService(i); else a.startService(i); } catch(Throwable ignored) {}
     }
     @JavascriptInterface public void stopBackgroundService() { try { a.stopService(new Intent(a,nx.DownloadKeepAliveService.class)); } catch(Throwable ignored) {} }
+
+
+    /* ===== Simpan hasil alat (base64 per potongan -> Download/alisadownloader) ===== */
+    Hashtable sv = new Hashtable();
+
+    /** Mulai sesi simpan. Hasil: id sesi, "PERM" bila izin tulis (Android <=9) belum diberikan, "" bila gagal. */
+    @JavascriptInterface public String saveBegin(String name, String mime) {
+        try {
+            if (Build.VERSION.SDK_INT < 29 && a.checkSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE") != PackageManager.PERMISSION_GRANTED) {
+                a.requestPermissions(new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 7415);
+                return "PERM";
+            }
+            String id = "s" + System.nanoTime();
+            java.io.File f = new java.io.File(a.getCacheDir(), id + ".part");
+            sv.put(id, new Object[]{f, name, mime == null ? "application/octet-stream" : mime});
+            return id;
+        } catch (Throwable t) { return ""; }
+    }
+
+    @JavascriptInterface public boolean saveChunk(String id, String b64) {
+        try {
+            Object[] s = (Object[]) sv.get(id);
+            if (s == null) return false;
+            java.io.FileOutputStream o = new java.io.FileOutputStream((java.io.File) s[0], true);
+            o.write(android.util.Base64.decode(b64, android.util.Base64.DEFAULT));
+            o.close();
+            return true;
+        } catch (Throwable t) { return false; }
+    }
+
+    /** Selesai: salin dari cache ke Download/alisadownloader. Hasil: nama file akhir, "" bila gagal. */
+    @JavascriptInterface public String saveEnd(String id) {
+        Object[] s = (Object[]) sv.remove(id);
+        if (s == null) return "";
+        java.io.File tmp = (java.io.File) s[0]; String name = safeName((String) s[1]), mime = (String) s[2];
+        try {
+            java.io.InputStream in = new java.io.FileInputStream(tmp);
+            java.io.OutputStream out; Uri item = null; android.content.ContentResolver cr = a.getContentResolver();
+            if (Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/alisadownloader");
+                v.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                item = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (item == null) { in.close(); return ""; }
+                out = cr.openOutputStream(item);
+            } else {
+                java.io.File dir = new java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "alisadownloader");
+                dir.mkdirs();
+                out = new java.io.FileOutputStream(new java.io.File(dir, name));
+            }
+            byte[] buf = new byte[16384]; int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            out.close(); in.close();
+            if (item != null) { android.content.ContentValues v2 = new android.content.ContentValues(); v2.put(MediaStore.MediaColumns.IS_PENDING, 0); cr.update(item, v2, null, null); }
+            return name;
+        } catch (Throwable t) { return ""; }
+        finally { tmp.delete(); }
+    }
+
+    static String safeName(String n) {
+        if (n == null || n.trim().length() == 0) return "alisa-file";
+        return n.replaceAll("[\\\\/:*?\"<>|]+", "_").trim();
+    }
+
+    /** Haptic ringan tanpa izin tambahan. */
+    @JavascriptInterface public void haptic() {
+        a.runOnUiThread(new Runnable() { public void run() { try { a.getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); } catch (Throwable t) { } } });
+    }
+
+    /** Jaga layar tetap menyala (mis. saat memproses PDF/video panjang). */
+    @JavascriptInterface public void keepAwake(final boolean on) {
+        a.runOnUiThread(new Runnable() { public void run() {
+            if (on) a.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else a.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } });
+    }
+
+    /** Info jaringan: "wifi" | "cell" | "none" — dipakai opsi Hanya Wi-Fi. */
+    @JavascriptInterface public String netType() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) a.getSystemService("connectivity");
+            android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+            if (ni == null || !ni.isConnected()) return "none";
+            return ni.getType() == android.net.ConnectivityManager.TYPE_WIFI ? "wifi" : "cell";
+        } catch (Throwable t) { return "wifi"; }
+    }
+
+    /** Buka folder Unduhan aplikasi di file manager bila tersedia; jika tidak, daftar Unduhan sistem. */
+    @JavascriptInterface public void openOutput() { downloads(); }
 
     @JavascriptInterface public void exit() { a.finish(); }
 }

@@ -60,7 +60,8 @@ function initTheme() {
 
 /* ================= Navigasi ================= */
 let page = 'home';
-function go(p) { page = p; $$('.page').forEach(x => x.classList.toggle('active', x.id === 'p-' + p)); $$('.ni').forEach(x => x.classList.toggle('active', x.dataset.p === p)); window.scrollTo(0, 0); if (p === 'downloads') renderHist(); if (p === 'set') otaUI(); }
+function go(p) { if (p !== 'tools' && window.AT) AT.close(); page = p; $$('.page').forEach(x => x.classList.toggle('active', x.id === 'p-' + p)); $$('.ni').forEach(x => x.classList.toggle('active', x.dataset.p === p)); window.scrollTo(0, 0); if (p === 'downloads') renderHist(); if (p === 'set') otaUI(); }
+window.__toast = (m) => toast(m);
 $('#nav').onclick = e => { const b = e.target.closest('.ni'); if (b) go(b.dataset.p); };
 $('#openTheme').onclick = () => go('theme');
 $('#libraryPick').onclick = () => $('#libraryInput').click();
@@ -100,11 +101,17 @@ function renderDeviceFolder() {
 }
 $('#libraryInput').onchange = e => { const files = [...e.target.files || []]; if (!files.length) return; const list = $('#libraryItems'); $('#libraryStatus').classList.add('hidden'); files.forEach(f => { const u = URL.createObjectURL(f); const type = f.type.startsWith('audio/') ? 'audio' : f.type.startsWith('video/') ? 'video' : 'image'; const row = document.createElement('button'); row.className = 'item'; row.innerHTML = `<span class="ik">${type === 'audio' ? '♫' : type === 'video' ? '▶' : '▧'}</span><span class="it"><b>${esc(f.name)}</b><small>${(f.size/1048576).toFixed(2)} MB · ${type}</small></span><span class="muted">＋</span>`; row.onclick = () => { if (type === 'image') { openModal(`<img src="${u}" alt="${esc(f.name)}"><p>${esc(f.name)}</p>`); return; } Q.push({n:f.name,u,v:type==='video'}); renderQ(); toast('Media ditambahkan ke antrean pemutar.'); go('play'); }; list.appendChild(row); }); e.target.value = ''; };
 $('#libraryTabs').onclick = e => { const b=e.target.closest('button[data-v]'); if(!b)return; $$('#libraryTabs button').forEach(x=>x.classList.toggle('on',x===b)); const kind=b.dataset.v; $$('#libraryItems .item').forEach(x=>{ const t=x.querySelector('small')?.textContent||''; x.style.display=kind==='all'||t.includes(kind)?'flex':'none'; }); };
-$('#p-tools').onclick = e => { const b=e.target.closest('[data-tool]'); if(b) { const t=b.dataset.tool; if(t==='gallery') { go('library'); loadNativeLibrary('image'); } else if(t==='folder' && N && N.chooseFolder) openDeviceFolder(); else if(t==='background' && N && N.startBackgroundService) { N.startBackgroundService(); toast('Layanan latar belakang diaktifkan.'); } else toast('Modul '+t+' memerlukan adaptor khusus; modul Mori tersedia di third_party/Mori/public/js.'); } };
+let toolsP = null;
+function loadTools() { if (window.AT) return Promise.resolve(); if (!toolsP) toolsP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools.js'; s.onload = ok; s.onerror = () => { toolsP = null; no(new Error('tools.js')); }; document.head.appendChild(s); }); return toolsP; }
+$('#p-tools').onclick = e => { const b = e.target.closest('[data-tool]'); if (!b) return; const t = b.dataset.tool;
+  if (t === 'gallery') { go('library'); loadNativeLibrary('image'); }
+  else if (t === 'folder' && N && N.chooseFolder) openDeviceFolder();
+  else if (t === 'background' && N && N.startBackgroundService) { N.startBackgroundService(); toast('Layanan latar belakang diaktifkan.'); }
+  else loadTools().then(() => { if (!AT.open(t)) toast('Alat tidak dikenal: ' + t); }).catch(() => toast('Gagal memuat modul alat')); };
 function openModal(html) { $('#mBody').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); $('#mBody').innerHTML = ''; }
 $('#mClose').onclick = closeModal; $('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
-window.__back = () => { if (!$('#modal').classList.contains('hidden')) return closeModal(); if (page !== 'home') return go('home'); if (N) N.exit(); };
+window.__back = () => { if (!$('#modal').classList.contains('hidden')) return closeModal(); if (window.AT && AT.isOpen()) return AT.close(); if (page !== 'home') return go('home'); if (N) N.exit(); };
 
 /* ================= Beranda ================= */
 const kcol = k => { let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},62%,52%)`; };
@@ -182,6 +189,7 @@ async function download(i, row) {
   const st = row.querySelector('.st'), bar = row.querySelector('.bar'), fill = bar.firstElementChild, r = cur;
   const say = (t, c) => { st.textContent = t; st.className = 'st' + (c ? ' ' + c : ''); };
   try {
+    if (get('nx_wifionly', false) && N && N.netType && N.netType() === 'cell') return say('Mode Hanya Wi-Fi aktif — sambungkan Wi-Fi dulu', 'bad');
     say(tr('prep')); let it = r.items[i];
     if (it.lazy) it = await E.resolve(it);
     if (!it.url) throw new Error('URL kosong');
@@ -191,7 +199,7 @@ async function download(i, row) {
     if (!N) { window.open(it.url, '_blank'); say(tr('started')); addHist(r); return; }
     const id = N.dl(it.url, name, MIME[it.ext] || 'application/octet-stream', hdrs(it));
     if (!id) throw new Error('DownloadManager menolak');
-    addHist(r); bar.classList.remove('hidden'); say(tr('started'));
+    addHist(r); bar.classList.remove('hidden'); say(tr('started')); if (get('nx_haptic', false) && N.haptic) N.haptic();
     const t0 = Date.now();
     const iv = setInterval(() => {
       const s = (N.dlState(id) || '').split('|'), c = +s[0], b = +s[1], t = +s[2];
@@ -210,7 +218,7 @@ $('#btnPaste').onclick = async () => { const t = await pasteClip(); if (!t) retu
 /* ================= Riwayat ================= */
 const hist = () => get('nx_hist', []);
 function addHist(r) {
-  const h = hist().filter(x => x.u !== r.url); h.unshift({ u: r.url, p: r.platform, pn: r.pname, t: r.title, th: r.thumb, ts: Date.now(), n: r.items.length }); set('nx_hist', h.slice(0, 200));
+  const h = hist().filter(x => x.u !== r.url); h.unshift({ u: r.url, p: r.platform, pn: r.pname, t: r.title, th: r.thumb, ts: Date.now(), n: r.items.length }); { const lim = get('nx_hist_limit', 200); set('nx_hist', lim > 0 ? h.slice(0, lim) : h); }
 }
 function renderHist() {
   const q = $('#histQ').value.trim().toLowerCase(), h = hist().filter(x => !q || (x.t + ' ' + x.pn + ' ' + x.u).toLowerCase().includes(q));
@@ -250,9 +258,19 @@ $('#spd').onchange = e => { av.playbackRate = +e.target.value; };
 $('#slp').onchange = e => { clearTimeout(sleepT); const m = +e.target.value; if (m) { sleepT = setTimeout(() => { av.pause(); $('#slp').value = '0'; }, m * 6e4); toast('Timer ' + m + ' m'); } };
 
 /* ================= Setelan ================= */
+function applyPrefs() {
+  document.body.classList.toggle('compact', !!get('nx_compact', false));
+  const vis = (p, k) => { const n = $('.ni[data-p="' + p + '"]'); if (n) n.classList.toggle('hidden', !get(k, true)); };
+  vis('library', 'nx_show_lib'); vis('tools', 'nx_show_tools');
+}
 function initSettings() {
   $('#segLang').onclick = e => { const v = e.target.dataset.v; if (v) { lang = v; set('nx_lang', v); applyLang(); chips(); otaUI(); renderQ(); } };
   const bind = (id, key, def) => { const el = $(id); el.checked = get(key, def); el.onchange = () => set(key, el.checked); };
+  bind('#wifiOnly', 'nx_wifionly', false); bind('#haptic', 'nx_haptic', false); bind('#compact', 'nx_compact', false); bind('#showLib', 'nx_show_lib', true); bind('#showTools', 'nx_show_tools', true);
+  $('#compact').addEventListener('change', applyPrefs); $('#showLib').addEventListener('change', applyPrefs); $('#showTools').addEventListener('change', applyPrefs);
+  $('#ua').value = get('nx_ua', ''); $('#ua').onchange = e => set('nx_ua', e.target.value.trim());
+  $('#histLimit').value = String(get('nx_hist_limit', 200)); $('#histLimit').onchange = e => { set('nx_hist_limit', +e.target.value); const h = hist(), n = +e.target.value; if (n > 0 && h.length > n) set('nx_hist', h.slice(0, n)); };
+  applyPrefs();
   bind('#autoPaste', 'nx_autopaste', false); bind('#autoGo', 'nx_autogo', true); bind('#otaAuto', 'nx_ota_auto', true);
   const to = +LS.getItem('nx_timeout') || 30; $('#to').value = to; $('#toV').textContent = to + 's';
   $('#to').oninput = e => { LS.setItem('nx_timeout', e.target.value); $('#toV').textContent = e.target.value + 's'; };

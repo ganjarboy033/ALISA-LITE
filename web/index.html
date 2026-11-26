@@ -80,12 +80,13 @@
     <button class="tool-card" data-tool="image"><i>▧</i><b>Konversi gambar</b><small>Format gambar</small></button>
     <button class="tool-card" data-tool="pdf"><i>▤</i><b>Kompres PDF</b><small>Optimasi dokumen</small></button>
     <button class="tool-card" data-tool="sniffer"><i>⌁</i><b>Media sniffer</b><small>Deteksi media halaman</small></button>
+    <button class="tool-card" data-tool="tiktok"><i>♪</i><b>TikTok finder</b><small>Info akun publik</small></button>
     <button class="tool-card" data-tool="shortlink"><i>↗</i><b>Resolver tautan</b><small>Periksa tautan pendek</small></button>
     <button class="tool-card" data-tool="anime"><i>✧</i><b>Anime search</b><small>Pencarian adegan</small></button>
     <button class="tool-card" data-tool="username"><i>@</i><b>Username lookup</b><small>Pemeriksa nama pengguna</small></button>
     <button class="tool-card" data-tool="batch"><i>⇩</i><b>Batch download</b><small>Unduh beberapa tautan</small></button>
   </div>
-  <div class="panel tool-note"><b>Modul alat</b><p class="muted">Halaman dan katalog fitur sudah disiapkan. Setiap alat akan dihubungkan ke engine Mori/Nexora dan native Android pada tahap integrasi berikutnya; kartu yang belum terhubung tidak menjalankan proses palsu.</p></div>
+  <div class="panel tool-note"><b>Alat siap pakai</b><p class="muted">Semua alat berjalan langsung di perangkat. Hasil tersimpan di Download/alisadownloader. Pustaka PDF (~1 MB) hanya diunduh sekali saat Kompres PDF pertama kali dipakai, sehingga ukuran APK tetap kecil.</p></div>
 </section>
 
 <!-- PLAYER -->
@@ -136,6 +137,18 @@
     <div class="eyebrow" style="margin-top:14px" data-t="folder">FOLDER UNDUHAN</div>
     <input id="folder" class="search" maxlength="30" placeholder="Alisa Lite">
     <button class="btn" style="margin-top:10px;width:100%" id="openDl" data-t="open_dl">Buka folder Unduhan</button>
+  </div>
+
+    <div class="panel" style="margin-top:14px" id="advBox">
+    <div class="eyebrow">LANJUTAN</div>
+    <div class="sw"><div><b>Hanya Wi-Fi</b><small>Tahan unduhan &amp; alat jaringan saat memakai data seluler</small></div><label class="tg"><input type="checkbox" id="wifiOnly"><i></i></label></div>
+    <div class="sw"><div><b>Getar halus</b><small>Umpan balik saat unduhan/penyimpanan berhasil</small></div><label class="tg"><input type="checkbox" id="haptic"><i></i></label></div>
+    <div class="sw"><div><b>Mode ringkas</b><small>Jarak antar elemen lebih rapat</small></div><label class="tg"><input type="checkbox" id="compact"><i></i></label></div>
+    <div class="sw"><div><b>Tampilkan tab Pustaka</b></div><label class="tg"><input type="checkbox" id="showLib"><i></i></label></div>
+    <div class="sw"><div><b>Tampilkan tab Tools</b></div><label class="tg"><input type="checkbox" id="showTools"><i></i></label></div>
+    <div class="sw"><div><b>Batas riwayat</b></div><select id="histLimit"><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="0">Tanpa batas</option></select></div>
+    <div class="eyebrow" style="margin-top:12px">USER-AGENT ALAT (OPSIONAL)</div>
+    <input id="ua" class="search" spellcheck="false" autocapitalize="off" placeholder="Kosongkan untuk bawaan">
   </div>
 
   <div class="panel" style="margin-top:14px" id="otaBox">

@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 /** Activity tunggal: WebView yang memuat assets/index.html + jembatan native "NX". */
 public class M extends Activity {
     WebView w;
+    ValueCallback<Uri[]> fileCb;   // pemilih file untuk <input type=file> (alat, pustaka, pemutar)
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -23,6 +26,14 @@ public class M extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         w.setBackgroundColor(0xFF0C1020);
         w.addJavascriptInterface(new B(this), "NX");
+        w.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
+                if (fileCb != null) fileCb.onReceiveValue(null);
+                fileCb = cb;
+                try { startActivityForResult(p.createIntent(), 7414); return true; }
+                catch (Throwable t) { fileCb = null; return false; }
+            }
+        });
         setContentView(w);
         Intent i = getIntent();
         String u = "file:///android_asset/index.html";
@@ -42,6 +53,10 @@ public class M extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 7414) {
+            if (fileCb != null) { fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data)); fileCb = null; }
+            return;
+        }
         if (requestCode == 7412 && resultCode == RESULT_OK && data != null && data.getData() != null) {
             Uri uri=data.getData();
             try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch(Throwable ignored) {}
