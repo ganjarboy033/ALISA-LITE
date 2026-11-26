@@ -1,0 +1,8 @@
+{
+  "name": "alisa-lite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Alisa Lite — KRUZENLAB lightweight Android media application",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node server/server.js", "bundle": "node scripts/build-bundle.js" }
+}
