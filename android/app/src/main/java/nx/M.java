@@ -16,7 +16,6 @@ public class M extends Activity {
         requestWindowFeature(1);                       // tanpa title bar
         getWindow().setStatusBarColor(0xFF0C1020);
         getWindow().setNavigationBarColor(0xFF0C1020);
-        requestPermissions(new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 0); // hanya berefek di Android <= 9
         w = new WebView(this);
         WebSettings s = w.getSettings();
         s.setJavaScriptEnabled(true);
@@ -32,12 +31,28 @@ public class M extends Activity {
             if (t != null) u = u + "?s=" + Uri.encode(t);
         }
         w.loadUrl(u);
+        if (android.os.Build.VERSION.SDK_INT >= 23) w.postDelayed(() -> { if (w != null) w.evaluateJavascript("window.__nativeReady&&window.__nativeReady()", null); }, 500);
     }
 
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         String t = i.getStringExtra("android.intent.extra.TEXT");
         if (t != null) w.evaluateJavascript("window.__share&&__share(decodeURIComponent(\"" + Uri.encode(t) + "\"))", null);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 7412 && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri=data.getData();
+            try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch(Throwable ignored) {}
+            getSharedPreferences("alisa_files",0).edit().putString("tree_uri",uri.toString()).apply();
+            if(w!=null) { String u=org.json.JSONObject.quote(uri.toString()); w.evaluateJavascript("window.__folderChosen&&window.__folderChosen("+u+")",null); }
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==7411 && w!=null) w.evaluateJavascript("window.__mediaPermissionResult&&window.__mediaPermissionResult()",null);
     }
 
     @Override public void onBackPressed() {

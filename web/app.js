@@ -64,10 +64,43 @@ function go(p) { page = p; $$('.page').forEach(x => x.classList.toggle('active',
 $('#nav').onclick = e => { const b = e.target.closest('.ni'); if (b) go(b.dataset.p); };
 $('#openTheme').onclick = () => go('theme');
 $('#libraryPick').onclick = () => $('#libraryInput').click();
-$('#libraryRefresh').onclick = () => toast('Pustaka lokal diperbarui setelah memilih media.');
+$('#libraryRefresh').onclick = () => loadNativeLibrary('all');
+$('#libraryBrowse').onclick = () => openDeviceFolder();
+async function loadNativeLibrary(kind='all') {
+  if (!N || !N.mediaList) return toast('Katalog perangkat tersedia di aplikasi Android.');
+  if (N.requestMediaAccess) N.requestMediaAccess();
+  const kinds = kind==='all' ? ['audio','video','image'] : [kind];
+  const list=$('#libraryItems'); list.innerHTML=''; $('#libraryStatus').classList.add('hidden');
+  let total=0;
+  for (const k of kinds) { let rows=[]; try { rows=JSON.parse(N.mediaList(k)||'[]'); } catch(e) {}
+    rows.forEach(x=>{ total++; const row=document.createElement('button'); row.className='item'; row.innerHTML=`<span class="ik">${k==='audio'?'♫':k==='video'?'▶':'▧'}</span><span class="it"><b>${esc(x.name||'Media')}</b><small>${(Number(x.size||0)/1048576).toFixed(2)} MB · ${k}${x.artist?' · '+esc(x.artist):''}</small></span><span class="muted">▶</span>`; row.onclick=()=>{ if(k==='image') N.playMedia(x.uri,x.mime); else N.playMedia(x.uri,x.mime); }; list.appendChild(row); });
+  }
+  if(!total) { $('#libraryStatus').classList.remove('hidden'); toast('Belum ada media yang dapat dibaca. Periksa izin media Android.'); }
+}
+let activeTree = '', folderStack = [];
+function openDeviceFolder() {
+  if (!N || !N.chooseFolder) return toast('Jelajah folder tersedia di aplikasi Android.');
+  const saved = N.savedTreeUri ? N.savedTreeUri() : '';
+  if (saved) { activeTree=saved; folderStack=[{id:'',name:'Folder perangkat'}]; renderDeviceFolder(); }
+  else N.chooseFolder();
+}
+window.__folderChosen = uri => { activeTree=uri; folderStack=[{id:'',name:'Folder perangkat'}]; renderDeviceFolder(); };
+window.__mediaPermissionResult = () => loadNativeLibrary('all');
+window.__nativeReady = () => { if (N && N.requestMediaAccess) N.requestMediaAccess(); };
+function renderDeviceFolder() {
+  const current=folderStack[folderStack.length-1]; let rows=[];
+  try { rows=JSON.parse(N.listFolder(activeTree,current.id)||'[]'); } catch(e) { rows=[{error:'Gagal membaca folder'}]; }
+  const err=rows.find(x=>x.error);
+  const body=err?`<p class="muted">${esc(err.error)}</p>`:rows.length?rows.map(x=>`<button class="item folder-entry" data-id="${esc(x.id)}" data-uri="${esc(x.uri)}" data-mime="${esc(x.mime||'*/*')}" data-dir="${x.dir?'1':'0'}"><span class="ik">${x.dir?'📁':'📄'}</span><span class="it"><b>${esc(x.name||'Tanpa nama')}</b><small>${x.dir?'Folder':((Number(x.size||0)/1048576).toFixed(2)+' MB · '+esc(x.mime||'File'))}</small></span><span class="muted">${x.dir?'›':'↗'}</span></button>`).join(''):'<div class="panel library-empty"><b>Folder ini kosong</b></div>';
+  openModal(`<div class="eyebrow">PENGELOLA FILE</div><h3>${esc(current.name)}</h3><div class="btnrow"><button class="btn sm" id="folderUp" ${folderStack.length<2?'disabled':''}>‹ Kembali</button><button class="btn sm" id="folderChoose">Pilih folder lain</button><button class="btn sm" id="folderForget">Lepas akses</button></div><div class="list" id="folderRows">${body}</div>`);
+  $('#folderUp').onclick=()=>{ if(folderStack.length>1){folderStack.pop();renderDeviceFolder();} };
+  $('#folderChoose').onclick=()=>N.chooseFolder();
+  $('#folderForget').onclick=()=>{N.forgetFolder();activeTree='';folderStack=[];closeModal();toast('Akses folder dilepas.');};
+  $('#folderRows').onclick=e=>{const b=e.target.closest('.folder-entry');if(!b)return;if(b.dataset.dir==='1'){folderStack.push({id:b.dataset.id,name:b.querySelector('b').textContent});renderDeviceFolder();}else N.openTreeFile(b.dataset.uri,b.dataset.mime);};
+}
 $('#libraryInput').onchange = e => { const files = [...e.target.files || []]; if (!files.length) return; const list = $('#libraryItems'); $('#libraryStatus').classList.add('hidden'); files.forEach(f => { const u = URL.createObjectURL(f); const type = f.type.startsWith('audio/') ? 'audio' : f.type.startsWith('video/') ? 'video' : 'image'; const row = document.createElement('button'); row.className = 'item'; row.innerHTML = `<span class="ik">${type === 'audio' ? '♫' : type === 'video' ? '▶' : '▧'}</span><span class="it"><b>${esc(f.name)}</b><small>${(f.size/1048576).toFixed(2)} MB · ${type}</small></span><span class="muted">＋</span>`; row.onclick = () => { if (type === 'image') { openModal(`<img src="${u}" alt="${esc(f.name)}"><p>${esc(f.name)}</p>`); return; } Q.push({n:f.name,u,v:type==='video'}); renderQ(); toast('Media ditambahkan ke antrean pemutar.'); go('play'); }; list.appendChild(row); }); e.target.value = ''; };
 $('#libraryTabs').onclick = e => { const b=e.target.closest('button[data-v]'); if(!b)return; $$('#libraryTabs button').forEach(x=>x.classList.toggle('on',x===b)); const kind=b.dataset.v; $$('#libraryItems .item').forEach(x=>{ const t=x.querySelector('small')?.textContent||''; x.style.display=kind==='all'||t.includes(kind)?'flex':'none'; }); };
-$('#p-tools').onclick = e => { const b=e.target.closest('[data-tool]'); if(b) toast('Modul '+b.dataset.tool+' belum dihubungkan ke engine native.'); };
+$('#p-tools').onclick = e => { const b=e.target.closest('[data-tool]'); if(b) { const t=b.dataset.tool; if(t==='gallery') { go('library'); loadNativeLibrary('image'); } else if(t==='folder' && N && N.chooseFolder) openDeviceFolder(); else if(t==='background' && N && N.startBackgroundService) { N.startBackgroundService(); toast('Layanan latar belakang diaktifkan.'); } else toast('Modul '+t+' memerlukan adaptor khusus; modul Mori tersedia di third_party/Mori/public/js.'); } };
 function openModal(html) { $('#mBody').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); $('#mBody').innerHTML = ''; }
 $('#mClose').onclick = closeModal; $('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
@@ -106,7 +139,36 @@ $('#result').onclick = e => {
   else if (b.dataset.a === 'cp') copy(it.url);
   else if (b.dataset.a === 'pv') preview(it);
 };
-async function dlAll() { const rows = $$('#result .item'); for (const r of rows) { await download(+r.dataset.i, r); await sleep(350); } }
+let batchSelection = new Set();
+function batchKind(it) { return it.kind === 'audio' ? 'music' : it.kind === 'video' ? 'video' : 'other'; }
+function batchCard(it, i) {
+  const selected = batchSelection.has(i);
+  const thumb = cur.thumb ? `<img src="${esc(cur.thumb)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : `<span>${it.kind === 'audio' ? ic('music') : ICON[it.kind] || ic('download')}</span>`;
+  return `<label class="bp-item"><input type="checkbox" data-bp-check="${i}" ${selected?'checked':''}><div class="bp-thumb">${thumb}</div><div class="bp-meta"><b>${esc(it.label || 'Media ' + (i+1))}</b><small>${esc((it.kind || 'file').toUpperCase())} · ${esc((it.ext || '').toUpperCase())}${it.size ? ' · '+esc(it.size) : ''}</small><small>${esc(cur.author || cur.pname || '')}</small></div><button type="button" class="btn sm" data-bp-preview="${i}">Preview</button></label>`;
+}
+function renderBatchList(filter='all', sort='original') {
+  const items = cur.items.map((it,i)=>({it,i})).filter(x => filter==='all' || batchKind(x.it)===filter);
+  if(sort==='title') items.sort((a,b)=>(a.it.label||'').localeCompare(b.it.label||''));
+  if(sort==='duration') items.sort((a,b)=>(Number(a.it.duration)||0)-(Number(b.it.duration)||0));
+  $('#bpList').innerHTML = items.map(x=>batchCard(x.it,x.i)).join('') || '<div class="empty">Tidak ada item pada kategori ini.</div>';
+  $('#bpCount').textContent = `${batchSelection.size} dari ${cur.items.length} dipilih`;
+  $('#bpAll').checked = batchSelection.size === cur.items.length;
+}
+function openBatchPreview() {
+  batchSelection = new Set(cur.items.map((_,i)=>i));
+  const total = cur.items.length;
+  openModal(`<div class="bp-head"><div class="eyebrow">BATCH DOWNLOAD</div><h3>${esc(cur.title || 'Media ditemukan')}</h3><p class="muted">${total} item · Periksa pilihan sebelum mulai mengunduh.</p></div>
+  <div class="bp-tools"><label class="bp-select"><input type="checkbox" id="bpAll" checked> Pilih semua</label><select id="bpFilter"><option value="all">Semua media</option><option value="music">Musik saja</option><option value="video">Video saja</option></select><select id="bpSort"><option value="original">Urutan asli</option><option value="title">Judul</option><option value="duration">Durasi</option></select></div>
+  <div id="bpList" class="bp-list"></div><div class="bp-footer"><b id="bpCount"></b><button class="btn primary" id="bpDownload">Unduh terpilih ↓</button></div>`);
+  renderBatchList();
+  $('#bpAll').onchange=e=>{ batchSelection=e.target.checked?new Set(cur.items.map((_,i)=>i)):new Set(); renderBatchList($('#bpFilter').value,$('#bpSort').value); };
+  $('#bpFilter').onchange=e=>renderBatchList(e.target.value,$('#bpSort').value);
+  $('#bpSort').onchange=e=>renderBatchList($('#bpFilter').value,e.target.value);
+  $('#bpList').onchange=e=>{ const i=Number(e.target.dataset.bpCheck); if(!Number.isInteger(i))return; e.target.checked?batchSelection.add(i):batchSelection.delete(i); renderBatchList($('#bpFilter').value,$('#bpSort').value); };
+  $('#bpList').onclick=e=>{ const b=e.target.closest('[data-bp-preview]'); if(b){ const it=cur.items[+b.dataset.bpPreview]; preview(it); } };
+  $('#bpDownload').onclick=async()=>{ if(!batchSelection.size)return toast('Pilih minimal satu item.'); const ids=[...batchSelection].sort((a,b)=>a-b); closeModal(); for(const i of ids){ const row=$(`#result .item[data-i="${i}"]`); if(row) await download(i,row); await sleep(350); } };
+}
+async function dlAll() { openBatchPreview(); }
 function copy(t) { if (N) N.copy(t); else if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); toast(tr('copied')); }
 function preview(it) {
   const u = esc(it.url);

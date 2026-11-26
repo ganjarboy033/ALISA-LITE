@@ -34,3 +34,7 @@ Workflow GitHub Actions membangun APK native dari `android/` dan mengunggah arti
 
 ## Lisensi
 Nimiyo/Nexora dan Mori memiliki lisensi serta kewajiban atribusi masing-masing. Mori menggunakan GPL-3.0-or-later; distribusi kode turunan yang menggabungkan Mori wajib mematuhi ketentuan GPL, termasuk penyediaan source yang sesuai. Lihat `THIRD_PARTY_NOTICES.md`.
+
+
+## V3 native integration
+MediaStore bridge, SAF folder picker entry point, foreground-service scaffold, and Download/alisadownloader destination are included. See `INTEGRATION_STATUS.md` for exact completion boundaries.

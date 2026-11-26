@@ -1,25 +1,29 @@
-# Alisa Lite — integration status
+# Alisa Lite — Native integration V4 (Galeri & File Manager)
 
-## Implemented in this foundation
-- Rebranded WebView interface to Alisa Lite and included supplied Alisa image as the app icon and in-app brand mark.
-- Gradle Android project now declares `com.kruzenlab.alisalite` as namespace and applicationId.
-- New six-section navigation: Beranda, Unduhan, Pustaka, Pemutar, Tools, Setelan.
-- Existing Nimiyo–Nexora downloader/scraper, OTA bundle mechanism, history, HTML media player, mini-player, and Theme Studio retained.
-- Local file picker can add audio/video to the existing playback queue and preview selected images in-app.
-- GitHub Actions now builds the native Gradle project rather than patching the old prebuilt APK.
+## Selesai pada source code revisi ini
+- Meminta izin baca media berdasarkan versi Android: Android 13+ meminta akses gambar, video, dan audio; Android 14+ juga mendukung izin visual terpilih. Android 6–12 menggunakan izin penyimpanan baca yang sesuai.
+- Setelah hasil izin diterima, pustaka MediaStore dimuat ulang otomatis.
+- Galeri/pustaka menampilkan katalog media lokal audio, video, dan gambar dari MediaStore. Menekan item membuka file dengan aplikasi yang tersedia di perangkat.
+- Tombol **Jelajahi folder** membuka Android Storage Access Framework (SAF), bukan meminta akses menyeluruh ke seluruh penyimpanan.
+- Izin folder yang dipilih disimpan secara persisten, sehingga folder terakhir dapat dibuka lagi setelah aplikasi dijalankan ulang.
+- File manager dapat menelusuri folder bertingkat, kembali ke folder sebelumnya, melihat nama/jenis/ukuran file, dan membuka file dengan aplikasi Android yang sesuai.
+- Pengguna dapat memilih folder lain atau melepas akses folder tersimpan.
+- UI utama Alisa Lite tetap menggunakan desain V2; tidak diganti dengan tampilan Mori.
+- Lokasi unduhan DownloadManager tetap `Download/alisadownloader`.
 
-## Not yet integrated / not to be advertised as working
-- Mori's Android native implementation is preserved under `third_party/Mori/` but has not been merged into `nx.B` / `nx.M`.
-- Full MediaStore indexing and persistent gallery/folder browser.
-- SAF folder selection and long-running background download service.
-- Mori share overlay/floating bubble.
-- Mori biometric/PIN lock and individual advanced tools (PDF/image/audio converters, lookup tools, etc.).
-- Unified Mori + Nexora download engine and deduplicated platform adapters.
-- Release signing with a stable private keystore. The workflow's debug signing is for CI testing only.
+## Batasan yang masih ada
+- File manager pada tahap ini adalah penjelajah dan pembuka file. Operasi salin, pindah, hapus, rename, kompres, dan ekstrak belum dibuat.
+- Android membatasi isi MediaStore berdasarkan izin yang diberikan. Pada Android 14, jika pengguna hanya memberi akses foto/video terpilih, daftar galeri mengikuti batas tersebut.
+- Item MediaStore dibuka menggunakan aplikasi penampil/pemutar yang terpasang. Pemutar Media3 internal dan MediaSession belum diintegrasikan.
+- Floating bubble/overlay belum diintegrasikan.
+- Modul Mori masih disimpan sebagai sumber referensi; tidak seluruh alat Mori sudah terhubung.
 
-## Required validation after CI build
-1. Install the generated APK on a test Android device and verify the installed package is `com.kruzenlab.alisalite`.
-2. Verify share-to-app, clipboard, downloads, playback, back navigation, and theme persistence.
-3. Integrate and test Mori native components one by one, including permission flows and Android-version behavior.
-4. Configure a private release keystore in GitHub Secrets before distributing updateable builds.
-5. Run license compliance review before publishing the combined application.
+## Pemeriksaan yang dilakukan
+- `node --check web/app.js` — lulus.
+- `node --check web/engine.js` — lulus.
+- Parsing `AndroidManifest.xml` — lulus.
+- Gradle/Java compilation dan pengujian pada perangkat Android belum dijalankan pada lingkungan ini. Jalankan workflow GitHub Actions untuk memastikan APK berhasil dibangun.
+
+## Catatan keamanan dan privasi
+- Akses file memakai SAF dan izin folder yang dipilih pengguna. Aplikasi tidak meminta izin `MANAGE_EXTERNAL_STORAGE` untuk membaca seluruh penyimpanan.
+- Izin folder tersimpan dapat dilepas dari menu Jelajahi folder.

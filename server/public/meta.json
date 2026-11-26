@@ -1,8 +1,13 @@
 {
   "scraperVersion": 2,
   "minAppVersion": "1.0.0",
-  "changelog": "Alisa Lite foundation",
+  "changelog": "Alisa Lite V4 gallery and file manager",
   "history": [
+    {
+      "v": 2,
+      "changelog": "Alisa Lite V4 gallery and file manager",
+      "ts": "2026-11-26T17:01:10.712Z"
+    },
     {
       "v": 2,
       "changelog": "Alisa Lite foundation",

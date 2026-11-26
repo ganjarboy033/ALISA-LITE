@@ -1,10 +1,20 @@
 package nx;
 
 import android.app.Activity;
+import android.content.ContentUris;
+import android.provider.MediaStore;
+import android.database.Cursor;
+import android.os.Environment;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.app.DownloadManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.provider.DocumentsContract;
+import android.os.Build;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.webkit.JavascriptInterface;
@@ -30,7 +40,7 @@ public class B {
             r.setTitle(name);
             r.setMimeType(mime);
             r.setNotificationVisibility(1);
-            r.setDestinationInExternalPublicDir("Download", name);
+            r.setDestinationInExternalPublicDir("Download/alisadownloader", name);
             String[] hs = hd.split("\n");
             for (int i = 0; i < hs.length; i++) {
                 int k = hs[i].indexOf(':');
@@ -94,6 +104,43 @@ public class B {
             a.startActivity(i);
         } catch (Throwable e) { }
     }
+
+
+    /** Katalog media lokal melalui MediaStore; hasil JSON aman untuk WebView. */
+    @JavascriptInterface public String mediaList(String kind) {
+        JSONArray out = new JSONArray(); Cursor c = null;
+        try {
+            Uri base; String[] projection; String sort;
+            if ("image".equals(kind)) { base = MediaStore.Images.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.MIME_TYPE}; sort = MediaStore.Images.Media.DATE_ADDED + " DESC"; }
+            else if ("video".equals(kind)) { base = MediaStore.Video.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.MIME_TYPE, MediaStore.Video.Media.DURATION}; sort = MediaStore.Video.Media.DATE_ADDED + " DESC"; }
+            else { base = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.SIZE, MediaStore.Audio.Media.DATE_ADDED, MediaStore.Audio.Media.MIME_TYPE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION}; sort = MediaStore.Audio.Media.DATE_ADDED + " DESC"; }
+            c = a.getContentResolver().query(base, projection, null, null, sort);
+            if (c != null) while (c.moveToNext()) {
+                long id=c.getLong(0); JSONObject o=new JSONObject();
+                o.put("id",id); o.put("name",c.getString(1)); o.put("size",c.getLong(2)); o.put("mime",c.getString(4));
+                o.put("uri",ContentUris.withAppendedId(base,id).toString());
+                int d=c.getColumnIndex("duration"); if(d>=0)o.put("duration",c.getLong(d));
+                int ar=c.getColumnIndex("artist"); if(ar>=0)o.put("artist",c.getString(ar));
+                out.put(o);
+            }
+        } catch(Throwable ignored) {} finally { if(c!=null)c.close(); }
+        return out.toString();
+    }
+
+    /** Buka media lokal melalui pemutar yang tersedia di perangkat. */
+    @JavascriptInterface public void playMedia(String uri, String mime) {
+        try { Intent i=new Intent(Intent.ACTION_VIEW, Uri.parse(uri)); i.setDataAndType(Uri.parse(uri), mime==null?"*/*":mime); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK); a.startActivity(i); } catch(Throwable ignored) {}
+    }
+
+    /** Meminta pengguna memilih folder melalui Storage Access Framework. */
+    @JavascriptInterface public void chooseFolder() {
+        try { Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); a.startActivityForResult(i, 7412); } catch(Throwable ignored) {}
+    }
+
+    @JavascriptInterface public void startBackgroundService() {
+        try { Intent i=new Intent(a, nx.DownloadKeepAliveService.class); if(android.os.Build.VERSION.SDK_INT>=26)a.startForegroundService(i); else a.startService(i); } catch(Throwable ignored) {}
+    }
+    @JavascriptInterface public void stopBackgroundService() { try { a.stopService(new Intent(a,nx.DownloadKeepAliveService.class)); } catch(Throwable ignored) {} }
 
     @JavascriptInterface public void exit() { a.finish(); }
 }
