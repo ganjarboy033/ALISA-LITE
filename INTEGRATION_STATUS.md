@@ -70,3 +70,36 @@
 - `node --check` untuk `app.js`, `engine.js`, `tools.js`, `server.js` — lulus.
 - Uji logika dengan jaringan tiruan (resolver, TikTok, 29 pemeriksa username, DoH domain) — lulus.
 - **Belum dijalankan:** kompilasi Java/Gradle dan pengujian di perangkat (tidak ada Android SDK di lingkungan ini). Jalankan workflow GitHub Actions lalu uji tiap alat di HP, terutama simpan file di Android 9 ke bawah dan Kompres PDF (butuh internet pertama kali).
+
+---
+
+# V6 — Pemutar Nimiyo + MixTools + galeri digabung ke tab Pemutar
+
+## Penyebab "patah-patah / berhenti saat keluar app" (hasil membaca kode Nimiyo v2.4.0)
+1. **Lagu berikutnya diserahkan ke JavaScript.** `MusicPlaybackService.handleNextAction()` hanya mengirim event "next" ke WebView. Saat app di latar belakang WebView dibekukan, event tidak sampai, lagu berhenti di akhir track. → Di Alisa, antrean, shuffle, repeat, dan auto-next berjalan **di service native** (`nx/P.java`).
+2. **Tidak ada `setWakeMode`/WifiLock** untuk sumber jaringan, wake lock hanya diambil saat state diperbarui → CPU/Wi-Fi tidur → patah-patah. → `setWakeMode(PARTIAL_WAKE_LOCK)` + `WifiLock` saat memutar URL.
+3. **Tidak ada audio focus / handling headset dicabut.** → ditambahkan (bisa dimatikan di Setelan → Pemutar).
+4. **`onError` ditelan diam-diam** (pemutar berhenti tanpa pesan). → coba ulang dari posisi terakhir 2×, lalu lewati ke lagu berikutnya + pesan error.
+5. **Buffer URL = bawaan MediaPlayer (kecil).** → `nx/BufSrc.java`: unduh bertahap ke cache disk (read-ahead 2/6/16 MB, bisa dipilih di Setelan → Pemutar), sambung otomatis dari byte terakhir jika koneksi putus, seek jauh memakai HTTP Range. Memuat banyak tapi sedikit-sedikit.
+6. **Izin `FOREGROUND_SERVICE_MEDIA_PLAYBACK` + tipe service `mediaPlayback`** dideklarasikan, `startForeground` dipanggil seketika di `onStartCommand` (batas 5 detik Android).
+7. Catatan: Nimiyo membuat `PresetReverb` tanpa izin `MODIFY_AUDIO_SETTINGS` di manifest, sehingga reverb native kemungkinan gagal diam-diam (itu sebabnya mereka punya jalur Web Audio). Alisa menambahkan izinnya dan melaporkan `revOk=false` ke UI bila perangkat tidak mendukung.
+
+## Yang dibawa dari Nimiyo
+- Mesin audio: MediaPlayer + MediaSession + notifikasi media + PresetReverb + PlaybackParams (kecepatan/pitch).
+- **MixTools**: Speed FX 60–140% (nada ikut berubah gaya slowed/nightcore) dan Reverb FX dengan XY-pad (Y = ukuran ruang → preset SmallRoom…LargeHall, X = wet). Pemetaan preset sama dengan Nimiyo.
+- Pemutar video native (VideoView + overlay) dengan layout/ikon asli Nimiyo, ditambah: lanjut dari posisi terakhir, ketuk dua kali ±10 dtk, kecepatan 0.5–2×, fokus audio (musik otomatis dijeda), indikator buffering.
+
+## Tab Pemutar (galeri digabung)
+Kartu pemutar bergaya Mori (sampul besar + latar blur, kontrol bulat, bar buffer) di atas galeri: filter Semua/Musik/Video/Gambar, pencarian, urutan, sampul/thumbnail gambar, pemuatan bertahap. Ketuk musik → antrean native; video → pemutar video native; gambar → penampil dengan geser. Penjelajah folder (SAF) ikut pindah ke sini. Tab Pustaka dihapus.
+
+## Ringan
+- Tidak ada dependensi baru (tanpa Media3/ExoPlayer). Tambahan Java ≈ 40 KB sebelum kompilasi; `player.js` dimuat hanya saat tab Pemutar dibuka atau saat service musik masih aktif.
+- Panel Setelan → Pemutar: Buffer (Hemat/Seimbang/Besar), jeda saat headset dicabut, hormati fokus audio.
+
+## Belum diverifikasi / batasan
+- Java belum dikompilasi dan belum diuji di perangkat (tidak ada Android SDK di sini). Uji JS dengan bridge tiruan lulus.
+- Reverb bergantung pada dukungan aux-effect perangkat (OEM tertentu tidak mendukung).
+- `MediaPlayer` tetap bukan ExoPlayer: untuk stream HLS/DASH atau codec langka, Media3 akan lebih baik, tetapi menambah ±1–2 MB APK.
+- Antrean dikirim maksimum 300 lagu per ketukan (batas ukuran Intent).
+- Thumbnail gambar memakai `content://` langsung di `<img>`; bila WebView menolak, tampil ikon ▧.
+- Mode "+ File" (blob) hanya aktif di browser; di Android dipakai galeri/Folder karena service native butuh URI `content://`.

@@ -232,5 +232,46 @@ public class B {
     /** Buka folder Unduhan aplikasi di file manager bila tersedia; jika tidak, daftar Unduhan sistem. */
     @JavascriptInterface public void openOutput() { downloads(); }
 
+
+    /* ===================== Pemutar native (P = audio service, V = video activity) ===================== */
+    /** Mulai/ganti antrean audio. json: [{id,title,artist,uri,dur}], cfg: {aheadMb,focus,noisy,speed,pitch,rev,preset,wet,repeat,shuffle}. */
+    @JavascriptInterface public void aQueue(String json, int index, boolean autoplay, long pos, String cfg) {
+        try {
+            Intent i = new Intent(a, P.class); i.setAction(P.A_SET);
+            i.putExtra("queue", json); i.putExtra("index", index); i.putExtra("autoplay", autoplay); i.putExtra("pos", pos);
+            JSONObject c = (cfg == null || cfg.length() == 0) ? new JSONObject() : new JSONObject(cfg);
+            i.putExtra("aheadMb", c.optInt("aheadMb", 6)); i.putExtra("focus", c.optBoolean("focus", true)); i.putExtra("noisy", c.optBoolean("noisy", true));
+            i.putExtra("speed", (float) c.optDouble("speed", 1)); i.putExtra("pitch", c.optBoolean("pitch", false));
+            i.putExtra("rev", c.optBoolean("rev", false)); i.putExtra("preset", c.optInt("preset", 5)); i.putExtra("wet", (float) c.optDouble("wet", 0.6));
+            i.putExtra("repeat", c.optInt("repeat", 0)); i.putExtra("shuffle", c.optBoolean("shuffle", false));
+            P.start(a, i);
+        } catch (Throwable ignored) { }
+    }
+    @JavascriptInterface public void aAdd(String json) { try { Intent i = new Intent(a, P.class); i.setAction(P.A_ADD); i.putExtra("queue", json); P.start(a, i); } catch (Throwable ignored) { } }
+    @JavascriptInterface public String aState() { return P.stateOf(); }
+    @JavascriptInterface public String aArt() { return P.artOf(); }
+    @JavascriptInterface public String aQueueList() { P p = P.inst; return p == null ? "[]" : p.queueJson(); }
+    @JavascriptInterface public void aToggle() { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.toggle(); } }); }
+    @JavascriptInterface public void aPlay() { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) { if (p.mp == null) p.toggle(); else p.startPlayback(); } } }); }
+    @JavascriptInterface public void aPause() { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.doPause(true); } }); }
+    @JavascriptInterface public void aNext() { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.next(false); } }); }
+    @JavascriptInterface public void aPrev() { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.prev(); } }); }
+    @JavascriptInterface public void aSeek(final long ms) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.seek(ms); } }); }
+    @JavascriptInterface public void aJump(final int i) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.playIndex(i, true, 0); } }); }
+    @JavascriptInterface public void aSpeed(final double s, final boolean pitch) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.setSpeed((float) s, pitch); } }); }
+    @JavascriptInterface public void aReverb(final boolean on, final int preset, final double wet) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.setReverb(on, preset, (float) wet); } }); }
+    @JavascriptInterface public void aMode(final int repeat, final boolean shuffle) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) { p.repeat = repeat; p.shuffle = shuffle; } } }); }
+    @JavascriptInterface public void aSleep(final int minutes) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.setSleep(minutes); } }); }
+    @JavascriptInterface public void aCfg(final int aheadMb, final boolean focus, final boolean noisy) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) { p.aheadBytes = Math.max(1, aheadMb) * 1024L * 1024L; p.focusOn = focus; p.noisyOn = noisy; } } }); }
+    @JavascriptInterface public void aStop() { try { Intent i = new Intent(a, P.class); i.setAction(P.A_STOP); P.start(a, i); } catch (Throwable ignored) { } }
+
+    /** Buka pemutar video native (V). pos = ms awal, -1 = lanjut dari posisi tersimpan. */
+    @JavascriptInterface public void playVideo(String uri, String title, long pos) {
+        try {
+            Intent i = new Intent(a, V.class); i.putExtra(V.X_URI, uri); i.putExtra(V.X_TITLE, title); i.putExtra(V.X_POS, pos);
+            a.startActivity(i);
+        } catch (Throwable ignored) { }
+    }
+
     @JavascriptInterface public void exit() { a.finish(); }
 }

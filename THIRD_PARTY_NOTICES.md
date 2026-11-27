@@ -5,3 +5,4 @@
 
 - `web/tools.js` adalah port ringkas dari modul Tools Mori (sniffer, username checker, tiktok finder, anime search, image/audio/pdf tools). Karena berasal dari Mori (GPL-3.0-or-later), berkas ini dan distribusi aplikasi yang memuatnya tunduk pada GPL-3.0-or-later; sediakan source lengkap saat mendistribusikan APK.
 - pdf.js (Apache-2.0, Mozilla) dan pdf-lib (MIT) dimuat dari cdnjs saat runtime, tidak dibundel dalam APK.
+- `nx/P.java`, `nx/V.java`, layout/ikon video dan logika MixTools diadaptasi dari Nimiyo v2.4.0 (MusicPlaybackService, VideoPlayerActivity, musicPlayer.js). Periksa lisensi Nimiyo sebelum mendistribusikan.

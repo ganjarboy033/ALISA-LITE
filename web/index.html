@@ -59,19 +59,6 @@
 </section>
 
 <!-- LIBRARY -->
-<section class="page" id="p-library">
-  <div class="library-hero panel">
-    <div class="eyebrow">ALISA MEDIA LIBRARY</div>
-    <h2>Pustaka perangkat</h2>
-    <p class="muted">Jelajahi musik, video, dan gambar perangkat. Gunakan Jelajahi folder untuk membuka folder perangkat melalui izin aman Android.</p>
-    <div class="btnrow"><button class="btn primary" id="libraryPick">+ Pilih media</button><button class="btn" id="libraryRefresh">Muat ulang</button><button class="btn" id="libraryBrowse">Jelajahi folder</button></div>
-  </div>
-  <div class="seg library-tabs" id="libraryTabs"><button class="on" data-v="all">Semua</button><button data-v="audio">Musik</button><button data-v="video">Video</button><button data-v="image">Gambar</button></div>
-  <div class="panel library-empty" id="libraryStatus"><div class="library-symbol">♫</div><b>Belum ada media yang ditambahkan</b><small>Pilih file dari perangkat untuk mulai membangun pustaka.</small></div>
-  <input id="libraryInput" type="file" accept="audio/*,video/*,image/*" multiple hidden>
-  <div id="libraryItems" class="list"></div>
-</section>
-
 <!-- TOOLS -->
 <section class="page" id="p-tools">
   <div class="sec"><h3>Media Tools</h3><span class="eyebrow">MORI TOOLKIT</span></div>
@@ -92,18 +79,28 @@
 <!-- PLAYER -->
 <section class="page" id="p-play">
   <div class="sec"><h3 data-t="player">Pemutar</h3>
-    <label class="btn sm primary" for="fileIn" data-t="add_files">+ Tambah file</label>
+    <div class="btnrow tight"><button class="btn sm" id="plRefresh" aria-label="Muat ulang">↻</button><button class="btn sm" id="plFolder">Folder</button><button class="btn sm" id="plStop" aria-label="Stop">■</button>
+    <label class="btn sm primary" for="fileIn">+ File</label></div>
     <input id="fileIn" type="file" accept="audio/*,video/*" multiple hidden></div>
-  <div class="panel pl">
-    <video id="av" playsinline preload="metadata"></video>
-    <div class="np"><b id="npT">—</b><small id="npS"></small></div>
-    <input type="range" id="seek" min="0" max="1000" value="0"><div class="tm"><span id="tC">0:00</span><span id="tD">0:00</span></div>
-    <div class="ctl"><button class="ib" id="bShuf" title="Shuffle"><svg class="ic"><use href="#i-shuffle"/></svg></button><button class="ib" id="bPrev" aria-label="Prev"><svg class="ic"><use href="#i-prev"/></svg></button><button class="ib big" id="bPlay" aria-label="Play"><svg class="ic"><use href="#i-play"/></svg></button><button class="ib" id="bNext" aria-label="Next"><svg class="ic"><use href="#i-next"/></svg></button><button class="ib" id="bRep" title="Repeat"><svg class="ic"><use href="#i-repeat"/></svg></button></div>
-    <div class="ctl2"><label><span data-t="speed">Kecepatan</span><select id="spd"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select></label>
-      <label><span data-t="sleep">Timer tidur</span><select id="slp"><option value="0">Off</option><option value="15">15 m</option><option value="30">30 m</option><option value="60">60 m</option></select></label></div>
+
+  <div id="npCard" class="panel npc hidden">
+    <div class="npc-bg" id="npBg"></div>
+    <div class="npc-in">
+      <div class="npc-art" id="npArt"><span>♫</span></div>
+      <div class="np"><b id="npT">—</b><small id="npS"></small><small id="npSt" class="npst"></small></div>
+      <div class="npc-seek"><input type="range" id="seek" min="0" max="1000" value="0"><div class="buf"><i id="bufBar"></i></div></div>
+      <div class="tm"><span id="tC">0:00</span><span id="tD">0:00</span></div>
+      <div class="ctl"><button class="ib" id="bShuf" aria-label="Shuffle"><svg class="ic"><use href="#i-shuffle"/></svg></button><button class="ib" id="bPrev" aria-label="Prev"><svg class="ic"><use href="#i-prev"/></svg></button><button class="ib big" id="bPlay" aria-label="Play"><svg class="ic"><use href="#i-play"/></svg></button><button class="ib" id="bNext" aria-label="Next"><svg class="ic"><use href="#i-next"/></svg></button><button class="ib" id="bRep" aria-label="Repeat"><svg class="ic"><use href="#i-repeat"/></svg></button></div>
+      <div class="pchips"><button class="pchip" id="bMix">MixTools <small id="mixSt"></small></button><button class="pchip" id="bSleep">Timer <small id="slSt"></small></button><button class="pchip" id="bQueue">Antrean</button></div>
+    </div>
   </div>
-  <div class="sec"><span class="eyebrow" data-t="queue">ANTREAN</span><button class="btn sm" id="qClr" data-t="clear">Bersihkan</button></div>
-  <div id="queue" class="list"></div>
+
+  <div class="sec" style="margin-top:6px"><span class="eyebrow">GALERI</span><span class="muted" id="libCount" style="font-size:11px"></span></div>
+  <div class="seg library-tabs" id="libTabs"><button class="on" data-v="all">Semua</button><button data-v="audio">Musik</button><button data-v="video">Video</button><button data-v="image">Gambar</button></div>
+  <div class="libbar"><input id="libQ" class="fld" type="search" placeholder="Cari media…" autocomplete="off"><select id="libSort"><option value="def">Bawaan</option><option value="name">Nama A–Z</option><option value="big">Terbesar</option><option value="small">Terkecil</option></select></div>
+  <div class="panel library-empty" id="libStatus"><div class="library-symbol">♫</div><b>Belum ada media</b><small>Izinkan akses media, lalu tekan muat ulang — atau buka Folder.</small></div>
+  <div id="libItems" class="list mlist"></div>
+  <button class="btn wide hidden" id="libMore">Tampilkan lebih banyak</button>
 </section>
 
 <!-- THEME -->
@@ -139,12 +136,19 @@
     <button class="btn" style="margin-top:10px;width:100%" id="openDl" data-t="open_dl">Buka folder Unduhan</button>
   </div>
 
-    <div class="panel" style="margin-top:14px" id="advBox">
+      <div class="panel" style="margin-top:14px" id="playBox">
+    <div class="eyebrow">PEMUTAR</div>
+    <div class="eyebrow" style="margin-top:10px">BUFFER STREAMING (URL)</div>
+    <div class="seg" id="segBuf"><button data-v="2">Hemat</button><button data-v="6" class="on">Seimbang</button><button data-v="16">Besar</button></div>
+    <small class="muted" style="display:block;margin:6px 0 4px">Besar = memuat lebih banyak data di depan secara bertahap; cocok untuk koneksi tidak stabil. Lagu lokal tidak terpengaruh.</small>
+    <div class="sw"><div><b>Jeda saat headset dicabut</b></div><label class="tg"><input type="checkbox" id="plNoisy"><i></i></label></div>
+    <div class="sw"><div><b>Hormati fokus audio</b><small>Jeda otomatis saat telepon / aplikasi lain memutar suara</small></div><label class="tg"><input type="checkbox" id="plFocus"><i></i></label></div>
+  </div>
+  <div class="panel" style="margin-top:14px" id="advBox">
     <div class="eyebrow">LANJUTAN</div>
     <div class="sw"><div><b>Hanya Wi-Fi</b><small>Tahan unduhan &amp; alat jaringan saat memakai data seluler</small></div><label class="tg"><input type="checkbox" id="wifiOnly"><i></i></label></div>
     <div class="sw"><div><b>Getar halus</b><small>Umpan balik saat unduhan/penyimpanan berhasil</small></div><label class="tg"><input type="checkbox" id="haptic"><i></i></label></div>
     <div class="sw"><div><b>Mode ringkas</b><small>Jarak antar elemen lebih rapat</small></div><label class="tg"><input type="checkbox" id="compact"><i></i></label></div>
-    <div class="sw"><div><b>Tampilkan tab Pustaka</b></div><label class="tg"><input type="checkbox" id="showLib"><i></i></label></div>
     <div class="sw"><div><b>Tampilkan tab Tools</b></div><label class="tg"><input type="checkbox" id="showTools"><i></i></label></div>
     <div class="sw"><div><b>Batas riwayat</b></div><select id="histLimit"><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="0">Tanpa batas</option></select></div>
     <div class="eyebrow" style="margin-top:12px">USER-AGENT ALAT (OPSIONAL)</div>
@@ -179,7 +183,6 @@
 <nav class="nav" id="nav">
   <button class="ni active" data-p="home"><svg class="ic"><use href="#i-home"/></svg><span>Beranda</span></button>
   <button class="ni" data-p="downloads"><svg class="ic"><use href="#i-download"/></svg><span>Unduhan</span></button>
-  <button class="ni" data-p="library"><svg class="ic"><use href="#i-music"/></svg><span>Pustaka</span></button>
   <button class="ni" data-p="play"><svg class="ic"><use href="#i-play"/></svg><span>Pemutar</span></button>
   <button class="ni" data-p="tools"><svg class="ic"><use href="#i-palette"/></svg><span>Tools</span></button>
   <button class="ni" data-p="set"><svg class="ic"><use href="#i-gear"/></svg><span>Setelan</span></button>

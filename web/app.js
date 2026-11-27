@@ -60,58 +60,28 @@ function initTheme() {
 
 /* ================= Navigasi ================= */
 let page = 'home';
-function go(p) { if (p !== 'tools' && window.AT) AT.close(); page = p; $$('.page').forEach(x => x.classList.toggle('active', x.id === 'p-' + p)); $$('.ni').forEach(x => x.classList.toggle('active', x.dataset.p === p)); window.scrollTo(0, 0); if (p === 'downloads') renderHist(); if (p === 'set') otaUI(); }
+function go(p) { if (p !== 'tools' && window.AT) AT.close(); page = p; $$('.page').forEach(x => x.classList.toggle('active', x.id === 'p-' + p)); $$('.ni').forEach(x => x.classList.toggle('active', x.dataset.p === p)); window.scrollTo(0, 0); if (p === 'downloads') renderHist(); if (p === 'play') loadPlayer().then(() => PL.show()).catch(() => {}); else if (window.PL) PL.paint(); if (p === 'set') otaUI(); }
 window.__toast = (m) => toast(m);
 $('#nav').onclick = e => { const b = e.target.closest('.ni'); if (b) go(b.dataset.p); };
 $('#openTheme').onclick = () => go('theme');
-$('#libraryPick').onclick = () => $('#libraryInput').click();
-$('#libraryRefresh').onclick = () => loadNativeLibrary('all');
-$('#libraryBrowse').onclick = () => openDeviceFolder();
-async function loadNativeLibrary(kind='all') {
-  if (!N || !N.mediaList) return toast('Katalog perangkat tersedia di aplikasi Android.');
-  if (N.requestMediaAccess) N.requestMediaAccess();
-  const kinds = kind==='all' ? ['audio','video','image'] : [kind];
-  const list=$('#libraryItems'); list.innerHTML=''; $('#libraryStatus').classList.add('hidden');
-  let total=0;
-  for (const k of kinds) { let rows=[]; try { rows=JSON.parse(N.mediaList(k)||'[]'); } catch(e) {}
-    rows.forEach(x=>{ total++; const row=document.createElement('button'); row.className='item'; row.innerHTML=`<span class="ik">${k==='audio'?'♫':k==='video'?'▶':'▧'}</span><span class="it"><b>${esc(x.name||'Media')}</b><small>${(Number(x.size||0)/1048576).toFixed(2)} MB · ${k}${x.artist?' · '+esc(x.artist):''}</small></span><span class="muted">▶</span>`; row.onclick=()=>{ if(k==='image') N.playMedia(x.uri,x.mime); else N.playMedia(x.uri,x.mime); }; list.appendChild(row); });
-  }
-  if(!total) { $('#libraryStatus').classList.remove('hidden'); toast('Belum ada media yang dapat dibaca. Periksa izin media Android.'); }
-}
-let activeTree = '', folderStack = [];
-function openDeviceFolder() {
-  if (!N || !N.chooseFolder) return toast('Jelajah folder tersedia di aplikasi Android.');
-  const saved = N.savedTreeUri ? N.savedTreeUri() : '';
-  if (saved) { activeTree=saved; folderStack=[{id:'',name:'Folder perangkat'}]; renderDeviceFolder(); }
-  else N.chooseFolder();
-}
-window.__folderChosen = uri => { activeTree=uri; folderStack=[{id:'',name:'Folder perangkat'}]; renderDeviceFolder(); };
-window.__mediaPermissionResult = () => loadNativeLibrary('all');
+/* Pemutar + galeri (digabung) dimuat lazy dari player.js; stub di bawah dipanggil native sebelum modulnya siap */
+let plP = null;
+function loadPlayer() { if (window.PL) return Promise.resolve(); if (!plP) plP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'player.js'; s.onload = ok; s.onerror = () => { plP = null; no(new Error('player.js')); }; document.head.appendChild(s); }); return plP; }
+function addQ(x) { loadPlayer().then(() => PL.enqueue(x)).catch(() => toast('Gagal memuat pemutar')); }
+window.__folderChosen = uri => loadPlayer().then(() => { go('play'); PL.folderChosen(uri); });
+window.__mediaPermissionResult = () => { if (window.PL) PL.refresh(true); };
 window.__nativeReady = () => { if (N && N.requestMediaAccess) N.requestMediaAccess(); };
-function renderDeviceFolder() {
-  const current=folderStack[folderStack.length-1]; let rows=[];
-  try { rows=JSON.parse(N.listFolder(activeTree,current.id)||'[]'); } catch(e) { rows=[{error:'Gagal membaca folder'}]; }
-  const err=rows.find(x=>x.error);
-  const body=err?`<p class="muted">${esc(err.error)}</p>`:rows.length?rows.map(x=>`<button class="item folder-entry" data-id="${esc(x.id)}" data-uri="${esc(x.uri)}" data-mime="${esc(x.mime||'*/*')}" data-dir="${x.dir?'1':'0'}"><span class="ik">${x.dir?'📁':'📄'}</span><span class="it"><b>${esc(x.name||'Tanpa nama')}</b><small>${x.dir?'Folder':((Number(x.size||0)/1048576).toFixed(2)+' MB · '+esc(x.mime||'File'))}</small></span><span class="muted">${x.dir?'›':'↗'}</span></button>`).join(''):'<div class="panel library-empty"><b>Folder ini kosong</b></div>';
-  openModal(`<div class="eyebrow">PENGELOLA FILE</div><h3>${esc(current.name)}</h3><div class="btnrow"><button class="btn sm" id="folderUp" ${folderStack.length<2?'disabled':''}>‹ Kembali</button><button class="btn sm" id="folderChoose">Pilih folder lain</button><button class="btn sm" id="folderForget">Lepas akses</button></div><div class="list" id="folderRows">${body}</div>`);
-  $('#folderUp').onclick=()=>{ if(folderStack.length>1){folderStack.pop();renderDeviceFolder();} };
-  $('#folderChoose').onclick=()=>N.chooseFolder();
-  $('#folderForget').onclick=()=>{N.forgetFolder();activeTree='';folderStack=[];closeModal();toast('Akses folder dilepas.');};
-  $('#folderRows').onclick=e=>{const b=e.target.closest('.folder-entry');if(!b)return;if(b.dataset.dir==='1'){folderStack.push({id:b.dataset.id,name:b.querySelector('b').textContent});renderDeviceFolder();}else N.openTreeFile(b.dataset.uri,b.dataset.mime);};
-}
-$('#libraryInput').onchange = e => { const files = [...e.target.files || []]; if (!files.length) return; const list = $('#libraryItems'); $('#libraryStatus').classList.add('hidden'); files.forEach(f => { const u = URL.createObjectURL(f); const type = f.type.startsWith('audio/') ? 'audio' : f.type.startsWith('video/') ? 'video' : 'image'; const row = document.createElement('button'); row.className = 'item'; row.innerHTML = `<span class="ik">${type === 'audio' ? '♫' : type === 'video' ? '▶' : '▧'}</span><span class="it"><b>${esc(f.name)}</b><small>${(f.size/1048576).toFixed(2)} MB · ${type}</small></span><span class="muted">＋</span>`; row.onclick = () => { if (type === 'image') { openModal(`<img src="${u}" alt="${esc(f.name)}"><p>${esc(f.name)}</p>`); return; } Q.push({n:f.name,u,v:type==='video'}); renderQ(); toast('Media ditambahkan ke antrean pemutar.'); go('play'); }; list.appendChild(row); }); e.target.value = ''; };
-$('#libraryTabs').onclick = e => { const b=e.target.closest('button[data-v]'); if(!b)return; $$('#libraryTabs button').forEach(x=>x.classList.toggle('on',x===b)); const kind=b.dataset.v; $$('#libraryItems .item').forEach(x=>{ const t=x.querySelector('small')?.textContent||''; x.style.display=kind==='all'||t.includes(kind)?'flex':'none'; }); };
 let toolsP = null;
 function loadTools() { if (window.AT) return Promise.resolve(); if (!toolsP) toolsP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'tools.js'; s.onload = ok; s.onerror = () => { toolsP = null; no(new Error('tools.js')); }; document.head.appendChild(s); }); return toolsP; }
 $('#p-tools').onclick = e => { const b = e.target.closest('[data-tool]'); if (!b) return; const t = b.dataset.tool;
-  if (t === 'gallery') { go('library'); loadNativeLibrary('image'); }
-  else if (t === 'folder' && N && N.chooseFolder) openDeviceFolder();
+  if (t === 'gallery') go('play');
+  else if (t === 'folder' && N && N.chooseFolder) { go('play'); loadPlayer().then(() => PL.folder()); }
   else if (t === 'background' && N && N.startBackgroundService) { N.startBackgroundService(); toast('Layanan latar belakang diaktifkan.'); }
   else loadTools().then(() => { if (!AT.open(t)) toast('Alat tidak dikenal: ' + t); }).catch(() => toast('Gagal memuat modul alat')); };
 function openModal(html) { $('#mBody').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); $('#mBody').innerHTML = ''; }
 $('#mClose').onclick = closeModal; $('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
-window.__back = () => { if (!$('#modal').classList.contains('hidden')) return closeModal(); if (window.AT && AT.isOpen()) return AT.close(); if (page !== 'home') return go('home'); if (N) N.exit(); };
+window.__back = () => { if (!$('#modal').classList.contains('hidden')) return closeModal(); if (window.AT && AT.isOpen()) return AT.close(); if (window.PL && PL.back()) return; if (page !== 'home') return go('home'); if (N) N.exit(); };
 
 /* ================= Beranda ================= */
 const kcol = k => { let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},62%,52%)`; };
@@ -232,45 +202,26 @@ $('#histList').onclick = e => {
 };
 $('#histClear').onclick = () => { set('nx_hist', []); renderHist(); toast(tr('cleared')); };
 
-/* ================= Pemutar ================= */
-const av = $('#av'); let Q = [], qi = -1, shuf = false, rep = 0, sleepT = null;
-const fmt = s => { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-function addQ(x) { Q.push(x); renderQ(); if (qi < 0) play(0); }
-function renderQ() { const cm = Q[qi]; $('#mini').classList.toggle('hidden', !cm); document.body.classList.toggle('hasmini', !!cm); if (cm) { $('#mT').textContent = cm.n; $('#mS').textContent = (qi + 1) + ' / ' + Q.length; } $('#queue').innerHTML = Q.length ? Q.map((x, i) => `<div class="hrow qi${i === qi ? ' cur' : ''}" data-i="${i}"><div class="ik">${x.v ? ic('play') : ic('music')}</div><div class="il"><b>${esc(x.n)}</b></div><div class="acts"><button data-a="rm">${ic('close')}</button></div></div>`).join('') : `<div class="empty">${esc(tr('q_empty'))}</div>`; }
-function play(i) { if (!Q[i]) return; qi = i; av.src = Q[i].u; av.classList.toggle('v', !!Q[i].v); av.playbackRate = +$('#spd').value; av.play().catch(() => {}); $('#npT').textContent = Q[i].n; $('#npS').textContent = (i + 1) + ' / ' + Q.length; renderQ(); if ('mediaSession' in navigator && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: Q[i].n, artist: th.brand || 'Alisa Lite' }); }
-function next(dir = 1) { if (!Q.length) return; let i; if (shuf && Q.length > 1) { do i = Math.floor(Math.random() * Q.length); while (i === qi); } else { i = qi + dir; if (i >= Q.length) { if (rep === 0) return; i = 0; } if (i < 0) i = Q.length - 1; } play(i); }
-$('#fileIn').onchange = e => { [...e.target.files].forEach(f => Q.push({ n: f.name.replace(/\.[^.]+$/, ''), u: URL.createObjectURL(f), v: f.type.startsWith('video') })); e.target.value = ''; renderQ(); if (qi < 0 && Q.length) play(0); };
-$('#queue').onclick = e => { const r = e.target.closest('.qi'); if (!r) return; const i = +r.dataset.i; if (e.target.closest('button')) { Q.splice(i, 1); if (i < qi) qi--; else if (i === qi) { av.pause(); av.removeAttribute('src'); qi = -1; $('#npT').textContent = '—'; } renderQ(); } else play(i); };
-$('#qClr').onclick = () => { Q = []; qi = -1; av.pause(); av.removeAttribute('src'); $('#npT').textContent = '—'; $('#npS').textContent = ''; renderQ(); };
-$('#bPlay').onclick = () => { if (qi < 0 && Q.length) return play(0); av.paused ? av.play().catch(() => {}) : av.pause(); };
-$('#bNext').onclick = () => next(1); $('#bPrev').onclick = () => { if (av.currentTime > 4) av.currentTime = 0; else next(-1); };
-$('#bShuf').onclick = e => { shuf = !shuf; e.currentTarget.classList.toggle('on', shuf); };
-$('#bRep').onclick = e => { rep = (rep + 1) % 3; e.currentTarget.classList.toggle('on', rep > 0); e.currentTarget.dataset.m = rep === 2 ? '1' : ''; };
-function syncPlay() { const p = !av.paused, h = ic(p ? 'pause' : 'play'); $('#bPlay').innerHTML = h; $('#mPlay').innerHTML = h; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused'; }
-av.onplay = syncPlay; av.onpause = syncPlay;
-av.onended = () => { if (rep === 2) { av.currentTime = 0; av.play(); } else next(1); };
-av.ontimeupdate = () => { $('#tC').textContent = fmt(av.currentTime); $('#tD').textContent = fmt(av.duration); if (av.duration) { $('#seek').value = av.currentTime / av.duration * 1000; $('#mProg').style.width = av.currentTime / av.duration * 100 + '%'; } };
-$('#seek').oninput = e => { if (av.duration) av.currentTime = e.target.value / 1000 * av.duration; };
-$('#mPlay').onclick = () => $('#bPlay').click(); $('#mNext').onclick = () => next(1); $('#mPrev').onclick = () => $('#bPrev').click();
-$('#mini').onclick = e => { if (!e.target.closest('button')) go('play'); };
-if ('mediaSession' in navigator) { const ms = navigator.mediaSession; [['play', () => av.play()], ['pause', () => av.pause()], ['nexttrack', () => next(1)], ['previoustrack', () => next(-1)]].forEach(([a, f]) => { try { ms.setActionHandler(a, f); } catch (_) {} }); }
-$('#spd').onchange = e => { av.playbackRate = +e.target.value; };
-$('#slp').onchange = e => { clearTimeout(sleepT); const m = +e.target.value; if (m) { sleepT = setTimeout(() => { av.pause(); $('#slp').value = '0'; }, m * 6e4); toast('Timer ' + m + ' m'); } };
-
 /* ================= Setelan ================= */
 function applyPrefs() {
   document.body.classList.toggle('compact', !!get('nx_compact', false));
   const vis = (p, k) => { const n = $('.ni[data-p="' + p + '"]'); if (n) n.classList.toggle('hidden', !get(k, true)); };
-  vis('library', 'nx_show_lib'); vis('tools', 'nx_show_tools');
+  vis('tools', 'nx_show_tools');
 }
 function initSettings() {
-  $('#segLang').onclick = e => { const v = e.target.dataset.v; if (v) { lang = v; set('nx_lang', v); applyLang(); chips(); otaUI(); renderQ(); } };
+  $('#segLang').onclick = e => { const v = e.target.dataset.v; if (v) { lang = v; set('nx_lang', v); applyLang(); chips(); otaUI();
+  try { if (N && N.aState && JSON.parse(N.aState()).on) loadPlayer().then(() => PL.paint()); } catch (_) {} } };
   const bind = (id, key, def) => { const el = $(id); el.checked = get(key, def); el.onchange = () => set(key, el.checked); };
-  bind('#wifiOnly', 'nx_wifionly', false); bind('#haptic', 'nx_haptic', false); bind('#compact', 'nx_compact', false); bind('#showLib', 'nx_show_lib', true); bind('#showTools', 'nx_show_tools', true);
-  $('#compact').addEventListener('change', applyPrefs); $('#showLib').addEventListener('change', applyPrefs); $('#showTools').addEventListener('change', applyPrefs);
+  bind('#wifiOnly', 'nx_wifionly', false); bind('#haptic', 'nx_haptic', false); bind('#compact', 'nx_compact', false); bind('#showTools', 'nx_show_tools', true);
+  $('#compact').addEventListener('change', applyPrefs); $('#showTools').addEventListener('change', applyPrefs);
   $('#ua').value = get('nx_ua', ''); $('#ua').onchange = e => set('nx_ua', e.target.value.trim());
   $('#histLimit').value = String(get('nx_hist_limit', 200)); $('#histLimit').onchange = e => { set('nx_hist_limit', +e.target.value); const h = hist(), n = +e.target.value; if (n > 0 && h.length > n) set('nx_hist', h.slice(0, n)); };
   applyPrefs();
+  bind('#plNoisy', 'nx_noisy', true); bind('#plFocus', 'nx_focus', true);
+  const cfgSync = () => { if (window.PL) PL.cfgChanged(); };
+  $('#plNoisy').addEventListener('change', cfgSync); $('#plFocus').addEventListener('change', cfgSync);
+  const sb = get('nx_buf', 6); $$('#segBuf button').forEach(b => b.classList.toggle('on', +b.dataset.v === sb));
+  $('#segBuf').onclick = e => { const b = e.target.closest('button[data-v]'); if (!b) return; set('nx_buf', +b.dataset.v); $$('#segBuf button').forEach(x => x.classList.toggle('on', x === b)); cfgSync(); };
   bind('#autoPaste', 'nx_autopaste', false); bind('#autoGo', 'nx_autogo', true); bind('#otaAuto', 'nx_ota_auto', true);
   const to = +LS.getItem('nx_timeout') || 30; $('#to').value = to; $('#toV').textContent = to + 's';
   $('#to').oninput = e => { LS.setItem('nx_timeout', e.target.value); $('#toV').textContent = e.target.value + 's'; };
@@ -362,7 +313,8 @@ function initOta() {
 /* ================= Boot ================= */
 window.__share = t => { go('home'); const u = E.clean(t); $('#url').value = u || t; if (u && get('nx_autogo', true)) analyze(); };
 (async function boot() {
-  otaBoot(); applyLang(); initTheme(); initSettings(); initOta(); chips(); otaUI(); renderQ();
+  otaBoot(); applyLang(); initTheme(); initSettings(); initOta(); chips(); otaUI();
+  try { if (N && N.aState && JSON.parse(N.aState()).on) loadPlayer().then(() => PL.paint()); } catch (_) {}
   const s = new URLSearchParams(location.search).get('s');
   if (s) window.__share(decodeURIComponent(s));
   else if (get('nx_autopaste', false)) { const t = await pasteClip(), u = E.clean(t); if (/^https?:/.test(u) && E.detect(u)) { $('#url').value = u; if (get('nx_autogo', true)) analyze(); } }
