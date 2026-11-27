@@ -44,7 +44,7 @@ const A = NATIVE ? {
 
 /* ---------- state ---------- */
 let S = { on: false }, LIB = { audio: null, video: null, image: null }, kind = 'all', qry = '', sortBy = 'def', shown = 60, cur = [];
-let dragging = false, lastArt = -1, lastPlay = null, lastId = null, pollT = null, started = false;
+let lastLoad = 0, dragging = false, lastArt = -1, lastPlay = null, lastId = null, pollT = null, started = false;
 const trk = x => ({ id: String(x.id || x.uri), title: clean(x.name), artist: x.artist && x.artist !== '<unknown>' ? x.artist : '', uri: x.uri, dur: x.duration || 0 });
 
 /* ---------- render pemutar ---------- */
@@ -95,19 +95,23 @@ $('#seek').onchange = e => { A.seek(Math.round((S.dur || 0) * e.target.value / 1
 $('#mini').onclick = e => { if (!e.target.closest('button')) go('play'); };
 
 /* ---------- galeri gabungan ---------- */
-async function refresh(force) {
+async function refresh(force, silent) {
   if (!NATIVE || !N.mediaList) { view(); return; }
   if (N.requestMediaAccess) N.requestMediaAccess();
-  $('#libStatus').classList.add('hidden'); $('#libItems').innerHTML = `<div class="panel muted" style="text-align:center">${L('Memuat media…', 'Loading media…')}</div>`;
+  if (!silent) { $('#libStatus').classList.add('hidden'); $('#libItems').innerHTML = `<div class="panel muted" style="text-align:center">${L('Memuat media…', 'Loading media…')}</div>`; }
   for (const k of ['audio', 'video', 'image']) {
     if (LIB[k] && !force) continue; await sleep(0);
     let rows = []; try { rows = JSON.parse(N.mediaList(k) || '[]'); } catch (_) {}
     rows.forEach(r => { r.k = k; }); LIB[k] = rows;
   }
-  shown = 60; view();
+  let pv = []; try { pv = JSON.parse(N.mediaList('download') || '[]'); } catch (_) {}   // hasil unduhan di folder aplikasi (cadangan)
+  pv.forEach(r => { r.k = String(r.mime || '').split('/')[0]; }); LIB.priv = pv.filter(r => r.k === 'audio' || r.k === 'video' || r.k === 'image');
+  lastLoad = Date.now(); if (!silent) shown = 60; view();
 }
+const isDl = x => x.priv || /alisadownloader/i.test(x.rel || '');
+const allMedia = () => [].concat(LIB.audio || [], LIB.video || [], LIB.image || [], LIB.priv || []);
 function filtered() {
-  let l = kind === 'all' ? [].concat(LIB.audio || [], LIB.video || [], LIB.image || []) : (LIB[kind] || []);
+  let l = kind === 'all' ? allMedia() : kind === 'dl' ? allMedia().filter(isDl) : (LIB[kind] || []).concat((LIB.priv || []).filter(x => x.k === kind));
   if (qry) { const q = qry.toLowerCase(); l = l.filter(x => (x.name || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q)); }
   if (sortBy === 'name') l = l.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   else if (sortBy === 'big') l = l.slice().sort((a, b) => (b.size || 0) - (a.size || 0));
@@ -116,13 +120,13 @@ function filtered() {
 }
 function view() {
   cur = filtered();
-  const box = $('#libItems'), total = (LIB.audio || []).length + (LIB.video || []).length + (LIB.image || []).length;
+  const box = $('#libItems'), total = allMedia().length;
   $('#libStatus').classList.toggle('hidden', cur.length > 0);
-  if (!cur.length) { $('#libStatus b').textContent = total ? L('Tidak ada hasil', 'No results') : L('Belum ada media', 'No media yet'); $('#libStatus small').textContent = total ? L('Coba kata kunci atau filter lain.', 'Try another keyword or filter.') : L('Izinkan akses media, lalu tekan muat ulang — atau buka Folder.', 'Allow media access then refresh — or open Folder.'); }
+  if (!cur.length) { $('#libStatus b').textContent = total ? L('Tidak ada hasil', 'No results') : L('Belum ada media', 'No media yet'); $('#libStatus small').textContent = total ? L('Coba kata kunci atau filter lain.', 'Try another keyword or filter.') : (kind === 'dl' ? L('Belum ada hasil unduhan. Unduh dari Beranda, lalu kembali ke sini.', 'No downloads yet. Download from Home, then come back.') : L('Izinkan akses media, lalu tekan muat ulang — atau buka Folder.', 'Allow media access then refresh — or open Folder.')); }
   box.innerHTML = cur.slice(0, shown).map((x, i) => {
     const th = x.k === 'image' ? `<img loading="lazy" decoding="async" alt="" src="${esc(x.uri)}" onerror="this.remove()">` : '';
     const g = x.k === 'audio' ? '♫' : x.k === 'video' ? '▶' : '▧';
-    const meta = [x.k === 'audio' || x.k === 'video' ? (x.duration ? fmt(x.duration) : '') : '', mb(x.size), x.artist && x.artist !== '<unknown>' ? x.artist : ''].filter(Boolean).join(' · ');
+    const meta = [x.k === 'audio' || x.k === 'video' ? (x.duration ? fmt(x.duration) : '') : '', mb(x.size), x.artist && x.artist !== '<unknown>' ? x.artist : '', isDl(x) ? L('unduhan', 'download') : ''].filter(Boolean).join(' · ');
     return `<button class="item mrow k-${x.k}${String(x.id || x.uri) === String(S.id) ? ' cur' : ''}" data-i="${i}" data-id="${esc(String(x.id || x.uri))}"><span class="ik th">${th}<em>${g}</em></span><span class="it"><b>${esc(clean(x.name))}</b><small>${esc(meta)}</small></span></button>`;
   }).join('');
   $('#libMore').classList.toggle('hidden', cur.length <= shown);
@@ -249,6 +253,14 @@ $('#fileIn').onchange = e => {
   A.queue(l, 0, true, 0); kick();
 };
 
+/* ---------- putar langsung dari tautan (hasil analisis) ---------- */
+function playUrl(it, title, hdr) {
+  const t = title || it.label || 'Media';
+  if (it.kind === 'video' && NATIVE) { N.playVideoH(it.url, t, 0, JSON.stringify(hdr || {})); return; }
+  A.queue([{ id: it.url, title: t, artist: '', uri: it.url, dur: 0, hdr: hdr || {}, k: it.kind }], 0, true, 0);
+  start(); kick(); toast(L('Memutar: ', 'Playing: ') + t);
+}
+
 /* ---------- API publik ---------- */
 function start() { if (started) return; started = true; loop(); }
 function enqueue(x) {                                                      // dari tombol "antrean" di Beranda: {n,u,v}
@@ -256,9 +268,9 @@ function enqueue(x) {                                                      // da
   if (S.on) A.add(t); else A.queue(t, 0, true, 0);
   start(); kick();
 }
-function show() { start(); render(A.state()); if (NATIVE && LIB.audio === null) refresh(false); else if (!NATIVE && LIB.audio === null) { LIB = { audio: [], video: [], image: [] }; view(); } }
+function show() { start(); render(A.state()); if (NATIVE && LIB.audio === null) refresh(false); else if (NATIVE && Date.now() - lastLoad > 20000) refresh(true, true); else if (!NATIVE && LIB.audio === null) { LIB = { audio: [], video: [], image: [] }; view(); } }
 window.PL = {
-  show, enqueue, folderChosen, refresh: f => { if (LIB.audio !== null || f) refresh(true); }, paint: () => render(S),
+  show, enqueue, playUrl, folderChosen, refresh: f => { if (LIB.audio !== null || f) refresh(true); }, paint: () => render(S),
   folder: openFolder, cfgChanged: () => A.cfg(), back: () => closeImage(), toggle: () => { A.toggle(); kick(); }
 };
 start();

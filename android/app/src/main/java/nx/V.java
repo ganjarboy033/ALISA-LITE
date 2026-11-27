@@ -32,7 +32,7 @@ import java.util.Locale;
  * (menjeda musik), indikator buffering, layar tetap menyala, dan mode imersif.
  */
 public class V extends Activity {
-    public static final String X_URI = "uri", X_TITLE = "title", X_POS = "pos";
+    public static final String X_URI = "uri", X_TITLE = "title", X_POS = "pos", X_HDR = "hdr";
     private static final float[] SPEEDS = {1f, 1.25f, 1.5f, 2f, 0.5f, 0.75f};
 
     private VideoView vv;
@@ -133,7 +133,10 @@ public class V extends Activity {
         vv.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             public boolean onError(MediaPlayer m, int w, int x) { loading.setVisibility(View.GONE); openExternal(); return true; }
         });
-        try { vv.setVideoURI(uri); } catch (Throwable e) { toast("Gagal memuat video"); finish(); }
+        try {
+            java.util.Map<String, String> hm = P.hdrMap(getIntent().getStringExtra(X_HDR));
+            if (hm.isEmpty()) vv.setVideoURI(uri); else vv.setVideoURI(uri, hm);
+        } catch (Throwable e) { toast("Gagal memuat video"); finish(); }
         updateFsIcon();
         immersive();
     }

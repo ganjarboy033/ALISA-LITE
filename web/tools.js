@@ -219,7 +219,8 @@ const folder = () => String(LS('nx_folder') || 'Alisa Lite').replace(/[\\/:*?"<>
 function nativeDl(url, title, ext, referer) {
   if (!wifiGuard()) return false;
   if (!N) { window.open(url, '_blank'); return true; }
-  const id = N.dl(url, folder() + '/' + stem(title) + '.' + ext, MIMES[ext] || 'application/octet-stream', 'User-Agent: ' + customUA() + (referer ? '\nReferer: ' + referer : ''));
+  const nm = folder() + '/' + stem(title) + '.' + ext, mm = MIMES[ext] || 'application/octet-stream', hh = 'User-Agent: ' + customUA() + (referer ? '\nReferer: ' + referer : '');
+  let id = N.dl(nm ? url : url, nm, mm, hh); if (!id && N.fdl) id = N.fdl(url, nm, mm, hh);
   if (!id) { toast(T('Unduhan ditolak: ', 'Download rejected: ') + (N.dlError ? N.dlError() : '')); return false; }
   toast(T('Mengunduh…', 'Downloading…')); hap(); return true;
 }
@@ -427,7 +428,9 @@ function vBatch(b) {
         let it = r.items.find(x => x.kind === kind) || r.items[0]; if (it.lazy) it = await E().resolve(it); if (!it.url) throw new Error('URL kosong');
         const ext = it.ext || extOf(it.url, kind === 'audio' ? 'mp3' : 'mp4'), h = Object.assign({ 'User-Agent': E().UA }, it.h || {});
         const nm = stem(r.title || 'media') + (r.items.length > 1 ? ' - ' + stem(it.label || '') : '');
-        const id = N ? N.dl(it.url, folder() + '/' + nm + '.' + ext, MIMES[ext] || 'application/octet-stream', Object.keys(h).map(k => k + ': ' + h[k]).join('\n')) : (window.open(it.url, '_blank'), 'web');
+        const fn = folder() + '/' + nm + '.' + ext, mm = MIMES[ext] || 'application/octet-stream', hh = Object.keys(h).map(k => k + ': ' + h[k]).join('\n');
+        let id = N ? (r.platform === 'tiktok' && N.fdl ? N.fdl(it.url, fn, mm, hh) : N.dl(it.url, fn, mm, hh)) : (window.open(it.url, '_blank'), 'web');
+        if (!id && N && N.fdl) id = N.fdl(it.url, fn, mm, hh);
         if (!id) throw new Error('DownloadManager menolak' + (N.dlError ? ' — ' + N.dlError() : '')); s.textContent = T('Diunduh — ', 'Queued — ') + (r.pname || ''); s.className = 'ok'; ok++;
       } catch (e) { s.textContent = T('Gagal: ', 'Failed: ') + (e.message || e); s.className = 'bad'; }
     }

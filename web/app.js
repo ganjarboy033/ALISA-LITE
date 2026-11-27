@@ -94,6 +94,7 @@ async function analyze() {
   try {
     const r = await E.run(raw, s => status(s));
     cur = r; $('#url').value = r.url; renderResult(r); status(tr('found', { n: r.items.length }), 'ok');
+    if (get('nx_autoplay', false)) autoPlay(r);
   } catch (e) { $('#result').classList.add('hidden'); status(e.message || String(e), 'err'); }
   busy = false; $('#btnGo').disabled = false;
 }
@@ -147,7 +148,20 @@ function openBatchPreview() {
 }
 async function dlAll() { openBatchPreview(); }
 function copy(t) { if (N) N.copy(t); else if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {}); toast(tr('copied')); }
+/* Putar langsung dari tautan (pemutar native). Dipakai tombol mata dan saklar 'Langsung putar' di Setelan. */
+const hdrObj = it => Object.assign({ 'User-Agent': E.UA }, it.h || {});
+function playLink(it, r) { const title = (r && r.title) || it.label || 'Media'; loadPlayer().then(() => PL.playUrl(it, title, hdrObj(it))).catch(() => toast('Gagal memuat pemutar')); }
+async function autoPlay(r) {
+  try {
+    let it = r.items.find(x => x.kind === 'video' && x.url) || r.items.find(x => x.kind === 'audio') || r.items.find(x => x.kind === 'video');
+    if (!it) return;                                   // hanya gambar: tidak ada yang diputar
+    if (it.lazy) it = await E.resolve(it);
+    if (!it.url) return;
+    playLink(it, r);
+  } catch (e) { toast('Putar otomatis gagal: ' + (e.message || e)); }
+}
 function preview(it) {
+  if (it.kind === 'audio' || it.kind === 'video') return playLink(it, cur);
   const u = esc(it.url);
   const body = it.kind === 'image' ? `<img src="${u}" referrerpolicy="no-referrer">` : it.kind === 'audio' ? `<audio controls autoplay src="${u}"></audio>` : `<video controls autoplay playsinline src="${u}"></video>`;
   openModal(body + `<p>${esc(it.label)}</p>` + (it.kind !== 'image' ? `<button class="btn sm" id="mq" style="margin-top:10px">${esc(tr('to_queue'))}</button>` : ''));
@@ -167,15 +181,19 @@ async function download(i, row) {
     const nm = safe(r.title) + (r.items.length > 1 ? ' - ' + safe(it.label) : '');
     const name = folder + '/' + (nm || 'media') + '.' + it.ext;
     if (!N) { window.open(it.url, '_blank'); say(tr('started')); addHist(r); return; }
-    const id = N.dl(it.url, name, MIME[it.ext] || 'application/octet-stream', hdrs(it));
-    if (!id) throw new Error('DownloadManager menolak' + (N.dlError ? ' — ' + N.dlError() : ''));
+    const mime = MIME[it.ext] || 'application/octet-stream', hd = hdrs(it);
+    let viaNative = r.platform === 'tiktok' && !!N.fdl;                 // CDN TikTok bertoken/chunked: DownloadManager sering gagal
+    let id = viaNative ? N.fdl(it.url, name, mime, hd) : N.dl(it.url, name, mime, hd);
+    if (!id && !viaNative && N.fdl) { viaNative = true; id = N.fdl(it.url, name, mime, hd); }
+    if (!id) throw new Error('Unduhan gagal dimulai' + (N.dlError ? ' — ' + N.dlError() : ''));
     addHist(r); bar.classList.remove('hidden'); say(tr('started')); if (get('nx_haptic', false) && N.haptic) N.haptic();
-    const t0 = Date.now();
+    let t0 = Date.now();
     const iv = setInterval(() => {
       const s = (N.dlState(id) || '').split('|'), c = +s[0], b = +s[1], t = +s[2];
       if (c === 8) { clearInterval(iv); fill.style.width = '100%'; say(tr('done'), 'ok'); }
-      else if (c === 16 || !s[0] || Date.now() - t0 > 3.6e6) { clearInterval(iv); say(tr('failed'), 'bad'); }
-      else { fill.style.width = (t > 0 ? Math.max(4, b / t * 100) : 8) + '%'; say((c === 4 ? tr('paused') : tr('started')) + (t > 0 ? ' ' + Math.round(b / t * 100) + '%' : '')); }
+      else if ((c === 16 || !s[0]) && !viaNative && N.fdl) { viaNative = true; t0 = Date.now(); id = N.fdl(it.url, name, mime, hd); if (!id) { clearInterval(iv); say(tr('failed') + (N.dlError ? ': ' + N.dlError() : ''), 'bad'); } }   // DownloadManager gagal -> coba pengunduh native
+      else if (c === 16 || !s[0] || Date.now() - t0 > 3.6e6) { clearInterval(iv); say(tr('failed') + (N.dlError && N.dlError() ? ': ' + N.dlError() : ''), 'bad'); }
+      else { fill.style.width = (t > 0 ? Math.max(4, b / t * 100) : 8) + '%'; say((c === 4 ? tr('paused') : tr('started')) + (t > 0 ? ' ' + Math.round(b / t * 100) + '%' : (b > 0 ? ' ' + (b / 1048576).toFixed(1) + ' MB' : ''))); }
     }, 700);
   } catch (e) { say(tr('failed') + ': ' + (e.message || e), 'bad'); }
 }
@@ -217,6 +235,7 @@ function initSettings() {
   $('#ua').value = get('nx_ua', ''); $('#ua').onchange = e => set('nx_ua', e.target.value.trim());
   $('#histLimit').value = String(get('nx_hist_limit', 200)); $('#histLimit').onchange = e => { set('nx_hist_limit', +e.target.value); const h = hist(), n = +e.target.value; if (n > 0 && h.length > n) set('nx_hist', h.slice(0, n)); };
   applyPrefs();
+  bind('#autoPlay', 'nx_autoplay', false);
   bind('#plNoisy', 'nx_noisy', true); bind('#plFocus', 'nx_focus', true);
   const cfgSync = () => { if (window.PL) PL.cfgChanged(); };
   $('#plNoisy').addEventListener('change', cfgSync); $('#plFocus').addEventListener('change', cfgSync);

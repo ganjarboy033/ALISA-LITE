@@ -17,7 +17,8 @@ import java.net.URL;
  */
 class BufSrc extends MediaDataSource {
     private static final int MAX_RETRY = 6;
-    private final String url, ua, referer;
+    private final String url;
+    private final java.util.Map<String, String> hdrs;
     private final File file;
     private final long ahead;
     private final Object lock = new Object();
@@ -25,8 +26,8 @@ class BufSrc extends MediaDataSource {
     private volatile long size = -1, base = 0, filled = 0, readPos = 0, gen = 0;
     private volatile boolean closed = false, done = false, failed = false;
 
-    BufSrc(String url, File cacheDir, long aheadBytes, String ua, String referer) {
-        this.url = url; this.ua = ua; this.referer = referer;
+    BufSrc(String url, File cacheDir, long aheadBytes, java.util.Map<String, String> headers) {
+        this.url = url; this.hdrs = headers == null ? new java.util.HashMap<String, String>() : headers;
         this.ahead = Math.max(512 * 1024, aheadBytes);
         this.file = new File(cacheDir, "buf-" + Integer.toHexString(url.hashCode()) + "-" + System.nanoTime() + ".bin");
     }
@@ -71,12 +72,25 @@ class BufSrc extends MediaDataSource {
             while (alive(g)) {
                 HttpURLConnection c = null; InputStream in = null;
                 try {
-                    c = (HttpURLConnection) new URL(url).openConnection();
-                    c.setConnectTimeout(12000); c.setReadTimeout(15000);
-                    if (ua != null && ua.length() > 0) c.setRequestProperty("User-Agent", ua);
-                    if (referer != null && referer.length() > 0) c.setRequestProperty("Referer", referer);
-                    if (pos > 0) c.setRequestProperty("Range", "bytes=" + pos + "-");
-                    int code = c.getResponseCode();
+                    String cu = url;
+                    int code = 0;
+                    for (int hop = 0; hop < 6; hop++) {                                  // ikuti redirect manual (termasuk http<->https)
+                        c = (HttpURLConnection) new URL(cu).openConnection();
+                        c.setInstanceFollowRedirects(false);
+                        c.setConnectTimeout(12000); c.setReadTimeout(15000);
+                        boolean hasUa = false;
+                        for (java.util.Map.Entry<String, String> e : hdrs.entrySet()) { c.setRequestProperty(e.getKey(), e.getValue()); if ("user-agent".equalsIgnoreCase(e.getKey())) hasUa = true; }
+                        if (!hasUa) c.setRequestProperty("User-Agent", P.UA);
+                        if (pos > 0) c.setRequestProperty("Range", "bytes=" + pos + "-");
+                        code = c.getResponseCode();
+                        if (code >= 300 && code < 400) {
+                            String loc = c.getHeaderField("Location"); c.disconnect(); c = null;
+                            if (loc == null) throw new java.io.IOException("Redirect tanpa Location");
+                            cu = new URL(new URL(cu), loc).toString(); continue;
+                        }
+                        break;
+                    }
+                    if (c == null) throw new java.io.IOException("Terlalu banyak pengalihan");
                     if (code >= 400) throw new java.io.IOException("HTTP " + code);
                     if (size < 0) {
                         long len = c.getContentLengthLong();

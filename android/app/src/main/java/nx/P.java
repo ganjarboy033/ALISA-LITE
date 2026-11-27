@@ -55,7 +55,7 @@ public class P extends Service implements MediaPlayer.OnPreparedListener, MediaP
     static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0 Mobile Safari/537.36";
     static volatile P inst;
 
-    static class T { String id = "", title = "Audio", artist = "", uri = ""; long dur = 0; }
+    static class T { String id = "", title = "Audio", artist = "", uri = "", hdr = ""; long dur = 0; }
 
     final Handler h = new Handler(Looper.getMainLooper());
     final ExecutorService ex = Executors.newSingleThreadExecutor();
@@ -188,6 +188,7 @@ public class P extends Service implements MediaPlayer.OnPreparedListener, MediaP
                 JSONObject o = a.getJSONObject(i); T t = new T();
                 t.id = o.optString("id", "" + i); t.title = o.optString("title", "Audio"); t.artist = o.optString("artist", "");
                 t.uri = o.optString("uri", ""); t.dur = o.optLong("dur", 0);
+                JSONObject hh = o.optJSONObject("hdr"); if (hh != null) t.hdr = hh.toString();
                 if (t.uri.length() > 0) n.add(t);
             }
         } catch (Throwable ignored) { }
@@ -215,7 +216,7 @@ public class P extends Service implements MediaPlayer.OnPreparedListener, MediaP
                 m.setAudioAttributes(new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).setUsage(AudioAttributes.USAGE_MEDIA).build());
                 m.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
                 if (t.uri.startsWith("http://") || t.uri.startsWith("https://")) {
-                    bs = new BufSrc(t.uri, getCacheDir(), aheadBytes, UA, "");
+                    bs = new BufSrc(t.uri, getCacheDir(), aheadBytes, hdrMap(t.hdr));
                     if (!bs.open()) { bs.close(); throw new Exception("Tidak bisa membuka sumber (cek koneksi)"); }
                     m.setDataSource(bs);
                 } else if (t.uri.startsWith("content://")) m.setDataSource(P.this, Uri.parse(t.uri));
@@ -232,6 +233,12 @@ public class P extends Service implements MediaPlayer.OnPreparedListener, MediaP
                 h.post(new Runnable() { public void run() { if (g == loadGen) fail(e.getMessage() == null ? "Gagal membuka audio" : e.getMessage()); } });
             }
         } });
+    }
+
+    static java.util.Map<String, String> hdrMap(String json) {
+        java.util.HashMap<String, String> m = new java.util.HashMap<String, String>();
+        try { if (json != null && json.length() > 2) { JSONObject o = new JSONObject(json); java.util.Iterator<String> it = o.keys(); while (it.hasNext()) { String k = it.next(); m.put(k, o.optString(k)); } } } catch (Throwable ignored) { }
+        return m;
     }
 
     void cleanupPlayer() {

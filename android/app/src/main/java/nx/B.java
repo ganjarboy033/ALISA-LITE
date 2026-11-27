@@ -63,6 +63,7 @@ public class B {
     }
 
     @JavascriptInterface public String dlState(String id) {
+        if (id != null && id.startsWith("f")) { long[] s = fs.get(id); return s == null ? "" : s[0] + "|" + s[1] + "|" + s[2]; }
         try {
             DownloadManager d = (DownloadManager) a.getSystemService("download");
             DownloadManager.Query q = new DownloadManager.Query();
@@ -118,23 +119,50 @@ public class B {
 
     /** Katalog media lokal melalui MediaStore; hasil JSON aman untuk WebView. */
     @JavascriptInterface public String mediaList(String kind) {
+        if ("download".equals(kind)) return privateDownloads();
         JSONArray out = new JSONArray(); Cursor c = null;
         try {
             Uri base; String[] projection; String sort;
             if ("image".equals(kind)) { base = MediaStore.Images.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.MIME_TYPE}; sort = MediaStore.Images.Media.DATE_ADDED + " DESC"; }
             else if ("video".equals(kind)) { base = MediaStore.Video.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.MIME_TYPE, MediaStore.Video.Media.DURATION}; sort = MediaStore.Video.Media.DATE_ADDED + " DESC"; }
             else { base = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI; projection = new String[]{MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.SIZE, MediaStore.Audio.Media.DATE_ADDED, MediaStore.Audio.Media.MIME_TYPE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION}; sort = MediaStore.Audio.Media.DATE_ADDED + " DESC"; }
+            String relCol = Build.VERSION.SDK_INT >= 29 ? "relative_path" : "_data";
+            String[] p2 = new String[projection.length + 1]; System.arraycopy(projection, 0, p2, 0, projection.length); p2[projection.length] = relCol; projection = p2;
             c = a.getContentResolver().query(base, projection, null, null, sort);
             if (c != null) while (c.moveToNext()) {
                 long id=c.getLong(0); JSONObject o=new JSONObject();
                 o.put("id",id); o.put("name",c.getString(1)); o.put("size",c.getLong(2)); o.put("mime",c.getString(4));
                 o.put("uri",ContentUris.withAppendedId(base,id).toString());
                 int d=c.getColumnIndex("duration"); if(d>=0)o.put("duration",c.getLong(d));
+                int rc=c.getColumnIndex(relCol); if(rc>=0)o.put("rel",c.getString(rc));
                 int ar=c.getColumnIndex("artist"); if(ar>=0)o.put("artist",c.getString(ar));
                 out.put(o);
             }
         } catch(Throwable ignored) {} finally { if(c!=null)c.close(); }
         return out.toString();
+    }
+
+    /** File hasil unduhan di folder aplikasi (Android/data/<pkg>/files/Download), dipakai jika folder Download publik ditolak. */
+    String privateDownloads() {
+        JSONArray out = new JSONArray();
+        try { scan(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), out, 0); } catch (Throwable ignored) { }
+        return out.toString();
+    }
+    void scan(java.io.File d, JSONArray out, int depth) throws Exception {
+        if (d == null || depth > 3) return;
+        java.io.File[] fl = d.listFiles(); if (fl == null) return;
+        for (java.io.File f : fl) {
+            if (f.isDirectory()) { scan(f, out, depth + 1); continue; }
+            String n = f.getName(), ext = n.lastIndexOf('.') >= 0 ? n.substring(n.lastIndexOf('.') + 1).toLowerCase() : "", mime = "";
+            if (ext.matches("mp3|m4a|aac|wav|flac|ogg|opus")) mime = "audio/" + ext;
+            else if (ext.matches("mp4|webm|mkv|mov|3gp|m4v")) mime = "video/" + ext;
+            else if (ext.matches("jpg|jpeg|png|webp|gif")) mime = "image/" + ext;
+            if (mime.length() == 0) continue;
+            JSONObject o = new JSONObject();
+            o.put("id", f.getAbsolutePath()); o.put("name", n); o.put("size", f.length()); o.put("mime", mime);
+            o.put("uri", "file://" + f.getAbsolutePath()); o.put("rel", "private/alisadownloader"); o.put("priv", true);
+            out.put(o);
+        }
     }
 
     /** Buka media lokal melalui pemutar yang tersedia di perangkat. */
@@ -185,7 +213,17 @@ public class B {
     @JavascriptInterface public String saveEnd(String id) {
         Object[] s = (Object[]) sv.remove(id);
         if (s == null) return "";
-        java.io.File tmp = (java.io.File) s[0]; String name = safeName((String) s[1]), mime = (String) s[2];
+        java.io.File tmp = (java.io.File) s[0];
+        try { return publish(tmp, (String) s[1], (String) s[2]); } finally { tmp.delete(); }
+    }
+
+    /** Salin file sementara ke Download/alisadownloader[/subfolder]. name boleh berisi "Folder/nama.ext". Hasil: nama akhir atau "". */
+    String publish(java.io.File tmp, String rawName, String mime) {
+        String sub = "", nm = rawName == null ? "" : rawName;
+        int sl = nm.lastIndexOf('/');
+        if (sl >= 0) { sub = safeName(nm.substring(0, sl)); nm = nm.substring(sl + 1); }
+        String name = safeName(nm);
+        if (mime == null || mime.length() == 0) mime = "application/octet-stream";
         try {
             java.io.InputStream in = new java.io.FileInputStream(tmp);
             java.io.OutputStream out; Uri item = null; android.content.ContentResolver cr = a.getContentResolver();
@@ -193,13 +231,13 @@ public class B {
                 android.content.ContentValues v = new android.content.ContentValues();
                 v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
                 v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-                v.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/alisadownloader");
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/alisadownloader" + (sub.length() > 0 ? "/" + sub : ""));
                 v.put(MediaStore.MediaColumns.IS_PENDING, 1);
                 item = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
                 if (item == null) { in.close(); return ""; }
                 out = cr.openOutputStream(item);
             } else {
-                java.io.File dir = new java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "alisadownloader");
+                java.io.File dir = new java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "alisadownloader" + (sub.length() > 0 ? "/" + sub : ""));
                 dir.mkdirs();
                 out = new java.io.FileOutputStream(new java.io.File(dir, name));
             }
@@ -208,8 +246,55 @@ public class B {
             out.close(); in.close();
             if (item != null) { android.content.ContentValues v2 = new android.content.ContentValues(); v2.put(MediaStore.MediaColumns.IS_PENDING, 0); cr.update(item, v2, null, null); }
             return name;
-        } catch (Throwable t) { return ""; }
-        finally { tmp.delete(); }
+        } catch (Throwable t) { dlErr = t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()); return ""; }
+    }
+
+    /* ===== Pengunduh native (cadangan DownloadManager; dipakai TikTok & tautan bertoken/chunked) ===== */
+    final java.util.concurrent.ConcurrentHashMap<String, long[]> fs = new java.util.concurrent.ConcurrentHashMap<String, long[]>();
+    int fseq = 0;
+
+    /** Mulai unduhan di thread latar. Hasil: id "f#", "" bila gagal memulai (lihat dlError()). state: dlState(id). */
+    @JavascriptInterface public String fdl(final String url, final String name, final String mime, final String hd) {
+        dlErr = "";
+        if (Build.VERSION.SDK_INT < 29 && a.checkSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE") != PackageManager.PERMISSION_GRANTED) {
+            a.requestPermissions(new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 7415);
+            dlErr = "Izinkan akses penyimpanan lalu coba lagi"; return "";
+        }
+        final String id = "f" + (++fseq);
+        final long[] st = new long[]{2, 0, 0};          // status(2=jalan,8=selesai,16=gagal), bytes, total
+        fs.put(id, st);
+        Thread t = new Thread(new Runnable() { public void run() {
+            java.io.File tmp = new java.io.File(a.getCacheDir(), id + ".dl");
+            java.net.HttpURLConnection c = null;
+            try {
+                String u = url;
+                for (int hop = 0; hop < 6; hop++) {
+                    c = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                    c.setInstanceFollowRedirects(false); c.setConnectTimeout(15000); c.setReadTimeout(30000);
+                    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/116.0 Mobile Safari/537.36");
+                    String[] hs = hd == null ? new String[0] : hd.split("\\n");
+                    for (int k = 0; k < hs.length; k++) { int p = hs[k].indexOf(':'); if (p > 0) { String key = hs[k].substring(0, p).trim(), val = hs[k].substring(p + 1).trim().replace("\r", ""); if (key.length() > 0) c.setRequestProperty(key, val); } }
+                    int code = c.getResponseCode();
+                    if (code >= 300 && code < 400) { String loc = c.getHeaderField("Location"); c.disconnect(); if (loc == null) throw new java.io.IOException("Redirect tanpa Location"); u = new java.net.URL(new java.net.URL(u), loc).toString(); c = null; continue; }
+                    if (code >= 400) throw new java.io.IOException("HTTP " + code);
+                    break;
+                }
+                if (c == null) throw new java.io.IOException("Terlalu banyak pengalihan");
+                st[2] = Math.max(0, c.getContentLengthLong());
+                java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream o = new java.io.FileOutputStream(tmp);
+                byte[] buf = new byte[32768]; int n;
+                while ((n = in.read(buf)) > 0) { o.write(buf, 0, n); st[1] += n; }
+                o.close(); in.close();
+                if (st[1] <= 0) throw new java.io.IOException("Respons kosong");
+                String r = publish(tmp, name, mime);
+                if (r.length() == 0) throw new java.io.IOException(dlErr.length() > 0 ? dlErr : "Gagal menyimpan ke Download");
+                if (st[2] <= 0) st[2] = st[1];
+                st[0] = 8;
+            } catch (Throwable e) { dlErr = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()); st[0] = 16; }
+            finally { try { if (c != null) c.disconnect(); } catch (Throwable ignored) { } tmp.delete(); }
+        } }, "alisa-fdl");
+        t.setDaemon(true); t.start();
+        return id;
     }
 
     static String safeName(String n) {
@@ -275,6 +360,14 @@ public class B {
     @JavascriptInterface public void aSleep(final int minutes) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) p.setSleep(minutes); } }); }
     @JavascriptInterface public void aCfg(final int aheadMb, final boolean focus, final boolean noisy) { P.post(new Runnable() { public void run() { P p = P.inst; if (p != null) { p.aheadBytes = Math.max(1, aheadMb) * 1024L * 1024L; p.focusOn = focus; p.noisyOn = noisy; } } }); }
     @JavascriptInterface public void aStop() { try { Intent i = new Intent(a, P.class); i.setAction(P.A_STOP); P.start(a, i); } catch (Throwable ignored) { } }
+
+    /** Video dari URL jaringan dengan header (Referer/User-Agent/Cookie) — JSON objek. */
+    @JavascriptInterface public void playVideoH(String uri, String title, long pos, String hdrJson) {
+        try {
+            Intent i = new Intent(a, V.class); i.putExtra(V.X_URI, uri); i.putExtra(V.X_TITLE, title); i.putExtra(V.X_POS, pos); i.putExtra(V.X_HDR, hdrJson == null ? "" : hdrJson);
+            a.startActivity(i);
+        } catch (Throwable ignored) { }
+    }
 
     /** Buka pemutar video native (V). pos = ms awal, -1 = lanjut dari posisi tersimpan. */
     @JavascriptInterface public void playVideo(String uri, String title, long pos) {

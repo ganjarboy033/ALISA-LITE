@@ -96,7 +96,7 @@
   </div>
 
   <div class="sec" style="margin-top:6px"><span class="eyebrow">GALERI</span><span class="muted" id="libCount" style="font-size:11px"></span></div>
-  <div class="seg library-tabs" id="libTabs"><button class="on" data-v="all">Semua</button><button data-v="audio">Musik</button><button data-v="video">Video</button><button data-v="image">Gambar</button></div>
+  <div class="seg library-tabs" id="libTabs"><button class="on" data-v="all">Semua</button><button data-v="audio">Musik</button><button data-v="video">Video</button><button data-v="image">Gambar</button><button data-v="dl">Unduhan</button></div>
   <div class="libbar"><input id="libQ" class="fld" type="search" placeholder="Cari media…" autocomplete="off"><select id="libSort"><option value="def">Bawaan</option><option value="name">Nama A–Z</option><option value="big">Terbesar</option><option value="small">Terkecil</option></select></div>
   <div class="panel library-empty" id="libStatus"><div class="library-symbol">♫</div><b>Belum ada media</b><small>Izinkan akses media, lalu tekan muat ulang — atau buka Folder.</small></div>
   <div id="libItems" class="list mlist"></div>
@@ -138,6 +138,7 @@
 
       <div class="panel" style="margin-top:14px" id="playBox">
     <div class="eyebrow">PEMUTAR</div>
+    <div class="sw"><div><b>Langsung putar saat tautan ditemukan</b><small>Berlaku untuk semua platform. Video dibuka di pemutar video, audio di pemutar musik. Unduh tetap manual.</small></div><label class="tg"><input type="checkbox" id="autoPlay"><i></i></label></div>
     <div class="eyebrow" style="margin-top:10px">BUFFER STREAMING (URL)</div>
     <div class="seg" id="segBuf"><button data-v="2">Hemat</button><button data-v="6" class="on">Seimbang</button><button data-v="16">Besar</button></div>
     <small class="muted" style="display:block;margin:6px 0 4px">Besar = memuat lebih banyak data di depan secara bertahap; cocok untuk koneksi tidak stabil. Lagu lokal tidak terpengaruh.</small>

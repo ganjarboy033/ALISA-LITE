@@ -103,3 +103,14 @@ Kartu pemutar bergaya Mori (sampul besar + latar blur, kontrol bulat, bar buffer
 - Antrean dikirim maksimum 300 lagu per ketukan (batas ukuran Intent).
 - Thumbnail gambar memakai `content://` langsung di `<img>`; bila WebView menolak, tampil ikon ▧.
 - Mode "+ File" (blob) hanya aktif di browser; di Android dipakai galeri/Folder karena service native butuh URI `content://`.
+
+---
+
+# V6.1 — Putar dari tautan/unduhan, saklar putar langsung, perbaikan unduhan
+
+- **Bug unduhan:** `dl()` memakai `setDestinationInExternalPublicDir("Download/alisadownloader", …)` — parameter pertama harus `"Download"`; di Android 10+ ini ditolak. Diperbaiki (+ cadangan ke folder aplikasi, + pesan error nyata lewat `N.dlError()`).
+- **Pengunduh native `N.fdl`** (HttpURLConnection di thread latar → `Download/alisadownloader/<folder>` via MediaStore): dipakai otomatis untuk **TikTok** (CDN bertoken/chunked yang sering gagal di DownloadManager) dan sebagai cadangan jika DownloadManager menolak/gagal untuk platform mana pun. Redirect http↔https diikuti manual.
+- **Setelan → Pemutar → "Langsung putar saat tautan ditemukan"** (`nx_autoplay`, bawaan mati): berlaku untuk semua platform; memilih video lebih dulu, lalu audio; item lazy (mis. MP3 YouTube) di-resolve dulu. Tombol mata (pratinjau) kini juga memakai pemutar native (audio → service musik, video → pemutar video native, gambar tetap modal).
+- Putar dari URL membawa header (Referer/User-Agent/Cookie) ke `BufSrc` (audio) dan `VideoView.setVideoURI(uri, headers)` (video); redirect manual di buffer.
+- **Galeri Pemutar:** tab baru **Unduhan** (file di `Download/alisadownloader` via `RELATIVE_PATH` MediaStore + folder aplikasi), daftar dimuat ulang senyap tiap tab dibuka (>20 dtk).
+- Belum diuji di perangkat. Scraper TikTok bergantung pada situs pihak ketiga (tikdownloader/tiktokio/tikwm) dan tidak bisa saya uji dari sini; jika analisis TikTok sendiri gagal ("Gagal mengambil media"), itu soal sumber, bukan unduhan.
