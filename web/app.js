@@ -168,7 +168,7 @@ async function download(i, row) {
     const name = folder + '/' + (nm || 'media') + '.' + it.ext;
     if (!N) { window.open(it.url, '_blank'); say(tr('started')); addHist(r); return; }
     const id = N.dl(it.url, name, MIME[it.ext] || 'application/octet-stream', hdrs(it));
-    if (!id) throw new Error('DownloadManager menolak');
+    if (!id) throw new Error('DownloadManager menolak' + (N.dlError ? ' — ' + N.dlError() : ''));
     addHist(r); bar.classList.remove('hidden'); say(tr('started')); if (get('nx_haptic', false) && N.haptic) N.haptic();
     const t0 = Date.now();
     const iv = setInterval(() => {

@@ -33,24 +33,35 @@ public class B {
 
     @JavascriptInterface public String poll(String id) { return (String) m.remove(id); }
 
+    String dlErr = "";
+    /** Alasan kegagalan unduhan terakhir (untuk ditampilkan di UI). */
+    @JavascriptInterface public String dlError() { return dlErr; }
+
     @JavascriptInterface public String dl(String url, String name, String mime, String hd) {
-        try {
-            DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
-            r.setTitle(name);
-            r.setMimeType(mime);
-            r.setNotificationVisibility(1);
-            r.setDestinationInExternalPublicDir("Download/alisadownloader", name);
-            String[] hs = hd.split("\n");
-            for (int i = 0; i < hs.length; i++) {
-                int k = hs[i].indexOf(':');
-                if (k > 0) r.addRequestHeader(hs[i].substring(0, k).trim(), hs[i].substring(k + 1).trim());
-            }
-            DownloadManager d = (DownloadManager) a.getSystemService("download");
-            return String.valueOf(d.enqueue(r));
-        } catch (Throwable t) { return ""; }
+        dlErr = "";
+        String sub = "alisadownloader/" + name;                         // dirType HARUS "Download"; subfolder lewat subPath
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
+                r.setTitle(name.indexOf('/') >= 0 ? name.substring(name.lastIndexOf('/') + 1) : name);
+                if (mime != null && mime.length() > 0) r.setMimeType(mime);
+                r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                if (attempt == 0) r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, sub);
+                else r.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, name);   // cadangan: folder app (selalu bisa ditulis)
+                String[] hs = hd == null ? new String[0] : hd.split("\\n");
+                for (int k = 0; k < hs.length; k++) {
+                    int c = hs[k].indexOf(':');
+                    if (c > 0) { String key = hs[k].substring(0, c).trim(), val = hs[k].substring(c + 1).trim().replace("\r", ""); if (key.length() > 0) r.addRequestHeader(key, val); }
+                }
+                DownloadManager d = (DownloadManager) a.getSystemService("download");
+                String id = String.valueOf(d.enqueue(r));
+                if (attempt == 1) dlErr = "Disimpan di folder aplikasi (Android/data/…/Download) karena folder Download publik ditolak";
+                return id;
+            } catch (Throwable t) { dlErr = (t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage())); }
+        }
+        return "";
     }
 
-    /** "status|bytes|total" ; status: 1 antre, 2 jalan, 4 jeda, 8 selesai, 16 gagal */
     @JavascriptInterface public String dlState(String id) {
         try {
             DownloadManager d = (DownloadManager) a.getSystemService("download");

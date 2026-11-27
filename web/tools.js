@@ -220,7 +220,7 @@ function nativeDl(url, title, ext, referer) {
   if (!wifiGuard()) return false;
   if (!N) { window.open(url, '_blank'); return true; }
   const id = N.dl(url, folder() + '/' + stem(title) + '.' + ext, MIMES[ext] || 'application/octet-stream', 'User-Agent: ' + customUA() + (referer ? '\nReferer: ' + referer : ''));
-  if (!id) { toast(T('DownloadManager menolak tautan ini', 'DownloadManager rejected this link')); return false; }
+  if (!id) { toast(T('Unduhan ditolak: ', 'Download rejected: ') + (N.dlError ? N.dlError() : '')); return false; }
   toast(T('Mengunduh…', 'Downloading…')); hap(); return true;
 }
 function vSniffer(b) {
@@ -428,7 +428,7 @@ function vBatch(b) {
         const ext = it.ext || extOf(it.url, kind === 'audio' ? 'mp3' : 'mp4'), h = Object.assign({ 'User-Agent': E().UA }, it.h || {});
         const nm = stem(r.title || 'media') + (r.items.length > 1 ? ' - ' + stem(it.label || '') : '');
         const id = N ? N.dl(it.url, folder() + '/' + nm + '.' + ext, MIMES[ext] || 'application/octet-stream', Object.keys(h).map(k => k + ': ' + h[k]).join('\n')) : (window.open(it.url, '_blank'), 'web');
-        if (!id) throw new Error('DownloadManager menolak'); s.textContent = T('Diunduh — ', 'Queued — ') + (r.pname || ''); s.className = 'ok'; ok++;
+        if (!id) throw new Error('DownloadManager menolak' + (N.dlError ? ' — ' + N.dlError() : '')); s.textContent = T('Diunduh — ', 'Queued — ') + (r.pname || ''); s.className = 'ok'; ok++;
       } catch (e) { s.textContent = T('Gagal: ', 'Failed: ') + (e.message || e); s.className = 'bad'; }
     }
     awake(false); $('#go', b).disabled = false; say(st, T('Selesai — ', 'Done — ') + ok + ' / ' + L.length + T(' masuk antrean unduhan', ' queued'), ok ? 'ok' : 'err'); hap();
